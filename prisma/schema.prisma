@@ -1,0 +1,285 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum PromptStatus {
+  EXPERIMENT
+  VERIFIED
+  FAVORITE
+}
+
+enum PromptOrigin {
+  MANUAL
+  GENERATED
+}
+
+enum AssetRole {
+  COVER
+  REFERENCE
+  RESULT
+  COMPARISON
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum TranslationStatus {
+  NOT_REQUESTED
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum KnowledgeOwner {
+  BUILT_IN
+  USER
+}
+
+model Prompt {
+  id               String          @id @default(uuid())
+  title            String
+  description      String?
+  contentZh        String
+  contentEn        String?
+  negativeZh       String?
+  negativeEn       String?
+  status           PromptStatus    @default(EXPERIMENT)
+  rating           Int             @default(0)
+  origin           PromptOrigin    @default(MANUAL)
+  modelTaskId      String
+  categoryId       String?
+  compilationRunId String?         @unique
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  modelTask        ModelTask       @relation(fields: [modelTaskId], references: [id], onDelete: Restrict)
+  category         Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  compilationRun   CompilationRun? @relation(fields: [compilationRunId], references: [id], onDelete: SetNull)
+  assets           Asset[]
+  tags             PromptTag[]
+  versions         PromptVersion[]
+
+  @@index([updatedAt])
+  @@index([modelTaskId])
+  @@index([categoryId])
+}
+
+model Asset {
+  id           String    @id @default(uuid())
+  promptId     String
+  role         AssetRole
+  storageKey   String    @unique
+  mimeType     String
+  originalName String
+  width        Int?
+  height       Int?
+  byteSize     Int
+  checksum     String
+  createdAt    DateTime  @default(now())
+  prompt       Prompt    @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@index([promptId, role])
+}
+
+model Tag {
+  id             String      @id @default(uuid())
+  name           String
+  normalizedName String      @unique
+  type           String?
+  prompts        PromptTag[]
+}
+
+model PromptTag {
+  promptId String
+  tagId    String
+  prompt   Prompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([promptId, tagId])
+}
+
+model Category {
+  id       String     @id @default(uuid())
+  name     String
+  parentId String?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children Category[] @relation("CategoryTree")
+  prompts  Prompt[]
+
+  @@unique([parentId, name])
+}
+
+model PromptVersion {
+  id         String   @id @default(uuid())
+  promptId   String
+  version    Int
+  snapshot   Json
+  changeNote String?
+  createdAt  DateTime @default(now())
+  prompt     Prompt   @relation(fields: [promptId], references: [id], onDelete: Cascade)
+
+  @@unique([promptId, version])
+}
+
+model Model {
+  id          String         @id @default(uuid())
+  stableKey   String         @unique
+  name        String
+  provider    String
+  mediaType   MediaType
+  description String?
+  enabled     Boolean        @default(true)
+  order       Int            @default(0)
+  owner       KnowledgeOwner @default(BUILT_IN)
+  tasks       ModelTask[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model ModelTask {
+  id            String           @id @default(uuid())
+  stableKey     String           @unique
+  modelId       String
+  nameZh        String
+  nameEn        String
+  descriptionZh String?
+  descriptionEn String?
+  capabilities  Json
+  sectionOrder  Json
+  enabled       Boolean          @default(true)
+  order         Int              @default(0)
+  model         Model            @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  prompts       Prompt[]
+  templates     PromptTemplate[]
+  skills        SkillModelTask[]
+  personalRules PersonalRule[]
+  compilations  CompilationRun[]
+
+  @@index([modelId, order])
+}
+
+model PromptTemplate {
+  id                String           @id @default(uuid())
+  stableKey         String           @unique
+  modelTaskId       String
+  nameZh            String
+  nameEn            String
+  descriptionZh     String?
+  descriptionEn     String?
+  templateZh        String
+  templateEn        String
+  fieldSchema       Json
+  enabled           Boolean          @default(true)
+  version           Int              @default(1)
+  owner             KnowledgeOwner   @default(BUILT_IN)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  modelTask         ModelTask        @relation(fields: [modelTaskId], references: [id], onDelete: Cascade)
+  recommendedSkills TemplateSkill[]
+  compilations      CompilationRun[]
+
+  @@index([modelTaskId])
+}
+
+model PromptSkill {
+  id             String             @id @default(uuid())
+  stableKey      String             @unique
+  nameZh         String
+  nameEn         String
+  descriptionZh  String?
+  descriptionEn  String?
+  contentZh      String
+  contentEn      String
+  category       String
+  priority       Int                @default(100)
+  conflictGroup  String?
+  enabled        Boolean            @default(true)
+  version        Int                @default(1)
+  owner          KnowledgeOwner     @default(BUILT_IN)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  modelTasks     SkillModelTask[]
+  recommendedFor TemplateSkill[]
+  compilations   CompilationSkill[]
+}
+
+model SkillModelTask {
+  skillId     String
+  modelTaskId String
+  skill       PromptSkill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  modelTask   ModelTask   @relation(fields: [modelTaskId], references: [id], onDelete: Cascade)
+
+  @@id([skillId, modelTaskId])
+}
+
+model TemplateSkill {
+  templateId String
+  skillId    String
+  required   Boolean        @default(false)
+  template   PromptTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  skill      PromptSkill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([templateId, skillId])
+}
+
+model PersonalRule {
+  id          String         @id @default(uuid())
+  stableKey   String         @unique
+  modelTaskId String?
+  nameZh      String
+  nameEn      String
+  contentZh   String
+  contentEn   String
+  priority    Int            @default(1000)
+  enabled     Boolean        @default(false)
+  version     Int            @default(1)
+  owner       KnowledgeOwner @default(BUILT_IN)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  modelTask   ModelTask?     @relation(fields: [modelTaskId], references: [id], onDelete: Cascade)
+
+  @@index([modelTaskId])
+}
+
+model CompilationRun {
+  id                  String             @id @default(uuid())
+  modelTaskId         String
+  templateId          String
+  modelTaskKey        String
+  templateKey         String
+  templateVersion     Int
+  inputValues         Json
+  rulesSnapshot       Json
+  contentZh           String
+  contentEn           String?
+  translationStatus   TranslationStatus  @default(NOT_REQUESTED)
+  translationProvider String?
+  translationError    String?
+  compilerVersion     String
+  createdAt           DateTime           @default(now())
+  modelTask           ModelTask          @relation(fields: [modelTaskId], references: [id], onDelete: Restrict)
+  template            PromptTemplate     @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  skills              CompilationSkill[]
+  prompt              Prompt?
+
+  @@index([createdAt])
+}
+
+model CompilationSkill {
+  compilationRunId String
+  skillId          String
+  stableKey        String
+  version          Int
+  contentZh        String
+  contentEn        String
+  compilationRun   CompilationRun @relation(fields: [compilationRunId], references: [id], onDelete: Cascade)
+  skill            PromptSkill    @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@id([compilationRunId, skillId])
+}

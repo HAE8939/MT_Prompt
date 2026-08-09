@@ -120,7 +120,6 @@ PromptVault/
     compiler/            Pure Prompt compilation domain package
   prisma/
     schema.prisma
-    migrations/
     seed.ts
   database/              Local SQLite runtime data
   storage/               Local binary assets
@@ -370,7 +369,7 @@ Users can edit copies of built-in records. Seed upgrades must not overwrite user
 ### Completion Criteria
 
 - A fresh checkout installs and starts the complete application from the root command documented in README.
-- `npm run setup` creates or migrates the local database and applies idempotent seed data; `npm run dev` starts the complete application.
+- `npm run setup` creates required runtime directories, synchronizes the local SQLite schema with `prisma db push`, and applies idempotent seed data; `npm run dev` starts the complete application. V1 intentionally uses this local-only schema synchronization path because Prisma Migrate's Windows Schema Engine deployment command is unavailable in the target environment; a deployment release must introduce verified migration history before multi-machine distribution.
 - The four core Playwright workflows pass against a temporary SQLite database and temporary storage directory.
 - The application remains usable when no translation provider is configured: Chinese compilation works and English generation clearly reports that configuration is required.
 - No test, log, export, or Git-tracked file contains provider secrets.

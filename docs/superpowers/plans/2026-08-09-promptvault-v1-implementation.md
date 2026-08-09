@@ -90,7 +90,7 @@ Expected: FAIL because `buildApp` does not exist.
     "dev": "concurrently -k -n api,web \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "npm --workspace @promptvault/api run dev",
     "dev:web": "npm --workspace @promptvault/web run dev",
-    "setup": "prisma generate && prisma migrate deploy && npm run seed",
+    "setup": "tsx prisma/ensure-runtime-paths-cli.ts && prisma generate && prisma db push --skip-generate && npm run seed",
     "seed": "tsx prisma/seed.ts",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"
@@ -186,7 +186,7 @@ export const skills = [
 
 Run: `npm run setup && npx vitest run prisma/seed.test.ts`
 
-Expected: Prisma migration applies, seed is idempotent, and the test passes.
+Expected: runtime directories and an empty SQLite file are created, Prisma synchronizes the local schema, seed data is idempotent, and the test passes.
 
 - [ ] **Step 5: Commit**
 
