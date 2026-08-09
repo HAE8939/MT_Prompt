@@ -34,3 +34,32 @@ export const promptListQuerySchema = z.object({
 });
 
 export type PromptListQuery = z.infer<typeof promptListQuerySchema>;
+
+export const skillInputSchema = z.object({
+  nameZh: z.string().trim().min(1).max(120),
+  nameEn: z.string().trim().min(1).max(120),
+  descriptionZh: z.string().trim().max(500).default(""),
+  descriptionEn: z.string().trim().max(500).default(""),
+  contentZh: z.string().trim().min(1),
+  contentEn: z.string().trim().min(1),
+  category: z.string().trim().min(1).max(60),
+  priority: z.number().int().min(0).max(1000).default(100),
+  conflictGroup: z.string().trim().max(80).nullable().default(null),
+  modelTaskIds: z.array(z.string().uuid()).min(1),
+  enabled: z.boolean().default(true),
+});
+
+export const templateInputSchema = z.object({
+  modelTaskId: z.string().uuid(),
+  nameZh: z.string().trim().min(1).max(160),
+  nameEn: z.string().trim().min(1).max(160),
+  descriptionZh: z.string().trim().max(500).default(""),
+  descriptionEn: z.string().trim().max(500).default(""),
+  templateZh: z.string().min(1),
+  templateEn: z.string().min(1),
+  fieldSchema: z.object({ fields: z.array(z.object({ name: z.string().min(1), labelZh: z.string().min(1), labelEn: z.string().min(1), type: z.literal("textarea"), required: z.boolean() })) }),
+  enabled: z.boolean().default(true),
+});
+
+export type SkillInput = z.infer<typeof skillInputSchema>;
+export type TemplateInput = z.infer<typeof templateInputSchema>;

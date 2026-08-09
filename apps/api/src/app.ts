@@ -6,6 +6,8 @@ import { registerPromptRoutes } from "./modules/prompts/prompt.routes.js";
 import { PromptService } from "./modules/prompts/prompt.service.js";
 import { LocalStorageAdapter } from "./modules/assets/local-storage-adapter.js";
 import { registerAssetRoutes } from "./modules/assets/asset.routes.js";
+import { KnowledgeService } from "./modules/knowledge/knowledge.service.js";
+import { registerKnowledgeRoutes } from "./modules/knowledge/knowledge.routes.js";
 import { join } from "node:path";
 
 export type AppOptions = { prisma?: PrismaClient };
@@ -22,6 +24,7 @@ export async function buildApp(options: AppOptions = {}) {
   app.get("/api/v1/health", async () => ({ status: "ok" as const }));
   await registerPromptRoutes(app, new PromptService(prisma));
   await registerAssetRoutes(app, prisma, new LocalStorageAdapter(join(process.cwd(), "storage")));
+  await registerKnowledgeRoutes(app, new KnowledgeService(prisma));
 
   if (ownsPrisma) {
     app.addHook("onClose", async () => prisma.$disconnect());
