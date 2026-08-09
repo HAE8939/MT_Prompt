@@ -63,3 +63,12 @@ export const templateInputSchema = z.object({
 
 export type SkillInput = z.infer<typeof skillInputSchema>;
 export type TemplateInput = z.infer<typeof templateInputSchema>;
+
+export const compileRequestSchema = z.object({
+  modelTaskId: z.string().uuid(),
+  templateId: z.string().uuid(),
+  skillIds: z.array(z.string().uuid()).default([]),
+  inputValues: z.record(z.string(), z.string().trim().min(1)),
+});
+
+export type CompileRequest = z.infer<typeof compileRequestSchema>;
