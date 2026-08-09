@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+
+.env
+.env.*
+!.env.example
+
+storage/
+database/*.db
+database/*.db-*
+backups/
+exports/
+
+.superpowers/
+*.log
