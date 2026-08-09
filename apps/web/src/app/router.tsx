@@ -1,0 +1,19 @@
+import { Navigate, Route, Routes } from "react-router-dom";
+import { LibraryPage } from "../features/library/LibraryPage";
+import { AppShell } from "./AppShell";
+
+function ComingSoon({ title }: { title: string }) {
+  return <section className="placeholder-page"><h1>{title}</h1><p>该工作区将在下一阶段接入。</p></section>;
+}
+
+export function AppRouter() {
+  return <Routes>
+    <Route element={<AppShell />}>
+      <Route index element={<Navigate to="/library" replace />} />
+      <Route path="/library" element={<LibraryPage />} />
+      <Route path="/generator" element={<ComingSoon title="Prompt 生成器" />} />
+      <Route path="/knowledge" element={<ComingSoon title="模板与技能" />} />
+      <Route path="/settings" element={<ComingSoon title="设置" />} />
+    </Route>
+  </Routes>;
+}

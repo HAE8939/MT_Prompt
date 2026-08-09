@@ -1,7 +1,3 @@
-export function App() {
-  return (
-    <main>
-      <h1>PromptVault</h1>
-    </main>
-  );
-}
+import { AppRouter } from "./router";
+
+export function App() { return <AppRouter />; }
