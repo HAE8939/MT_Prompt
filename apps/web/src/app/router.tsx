@@ -1,5 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { LibraryPage } from "../features/library/LibraryPage";
+import { GeneratorPage } from "../features/generator/GeneratorPage";
+import { KnowledgePage } from "../features/knowledge/KnowledgePage";
 import { AppShell } from "./AppShell";
 
 function ComingSoon({ title }: { title: string }) {
@@ -11,8 +13,8 @@ export function AppRouter() {
     <Route element={<AppShell />}>
       <Route index element={<Navigate to="/library" replace />} />
       <Route path="/library" element={<LibraryPage />} />
-      <Route path="/generator" element={<ComingSoon title="Prompt 生成器" />} />
-      <Route path="/knowledge" element={<ComingSoon title="模板与技能" />} />
+      <Route path="/generator" element={<GeneratorPage />} />
+      <Route path="/knowledge" element={<KnowledgePage />} />
       <Route path="/settings" element={<ComingSoon title="设置" />} />
     </Route>
   </Routes>;
