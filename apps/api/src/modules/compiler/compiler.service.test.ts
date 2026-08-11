@@ -34,4 +34,20 @@ describe("CompilerService", () => {
     expect(run.contentEn).toBeNull();
     expect(run.translationError).toBe("RATE_LIMITED");
   });
+
+  it("saves a compilation as a generated Prompt with provenance", async () => {
+    const task = await prisma.modelTask.findFirstOrThrow();
+    const template = await prisma.promptTemplate.findFirstOrThrow({ where: { modelTaskId: task.id } });
+    const translator: TranslationProvider = { id: "openai", translate: vi.fn().mockResolvedValue({ requirements: "A quiet blue-hour living room." }) };
+    const service = new CompilerService(prisma, translator);
+    const run = await service.compile({ modelTaskId: task.id, templateId: template.id, skillIds: [], inputValues: { requirements: "安静的蓝调客厅" } });
+
+    const saved = await service.saveAsPrompt(run.id, { title: "编译保存测试" });
+    try {
+      expect(saved).toMatchObject({ title: "编译保存测试", origin: "GENERATED", compilationRunId: run.id });
+      expect(await prisma.promptVersion.count({ where: { promptId: saved.id } })).toBe(1);
+    } finally {
+      await prisma.prompt.delete({ where: { id: saved.id } });
+    }
+  });
 });

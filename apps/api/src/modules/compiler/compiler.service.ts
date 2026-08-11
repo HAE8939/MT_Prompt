@@ -1,6 +1,6 @@
 import { compilePrompt } from "@promptvault/compiler";
 import type { PrismaClient } from "@prisma/client";
-import type { CompileRequest } from "@promptvault/contracts";
+import type { CompileRequest, SaveCompilationInput } from "@promptvault/contracts";
 import type { TranslationProvider } from "./translation-provider.js";
 
 const sectionByCategory: Record<string, string> = {
@@ -49,6 +49,45 @@ export class CompilerService {
         compilerVersion: "1", skills: { create: selectedSkills.map((skill) => ({ skillId: skill.id, stableKey: skill.stableKey, version: skill.version, contentZh: skill.contentZh, contentEn: skill.contentEn })) },
       },
       include: { skills: true },
+    });
+  }
+
+  async saveAsPrompt(compilationRunId: string, input: SaveCompilationInput) {
+    const run = await this.prisma.compilationRun.findUnique({
+      where: { id: compilationRunId },
+      include: { prompt: true },
+    });
+    if (!run) throw new Error("COMPILATION_NOT_FOUND");
+    if (run.prompt) return run.prompt;
+
+    return this.prisma.$transaction(async (tx) => {
+      const prompt = await tx.prompt.create({
+        data: {
+          title: input.title,
+          contentZh: run.contentZh,
+          contentEn: run.contentEn,
+          modelTaskId: run.modelTaskId,
+          compilationRunId: run.id,
+          origin: "GENERATED",
+          status: "EXPERIMENT",
+        },
+      });
+      await tx.promptVersion.create({
+        data: {
+          promptId: prompt.id,
+          version: 1,
+          snapshot: {
+            title: prompt.title,
+            contentZh: prompt.contentZh,
+            contentEn: prompt.contentEn,
+            modelTaskId: prompt.modelTaskId,
+            origin: prompt.origin,
+            compilationRunId: run.id,
+          },
+          changeNote: "由 Prompt 编译器生成",
+        },
+      });
+      return prompt;
     });
   }
 }

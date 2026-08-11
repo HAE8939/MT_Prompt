@@ -73,3 +73,9 @@ export const compileRequestSchema = z.object({
 });
 
 export type CompileRequest = z.infer<typeof compileRequestSchema>;
+
+export const saveCompilationSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+});
+
+export type SaveCompilationInput = z.infer<typeof saveCompilationSchema>;

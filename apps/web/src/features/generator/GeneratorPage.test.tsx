@@ -12,6 +12,7 @@ describe("GeneratorPage", () => {
       const url = String(input);
       if (url.includes("/models")) return { ok: true, status: 200, json: async () => [{ id: "m1", stableKey: "gpt-image-2", name: "GPT-IMAGE 2", tasks: [{ id: "t1", nameZh: "场景保持修改", templates: [{ id: "tpl1", nameZh: "场景保持模板" }] }] }] };
       if (url.includes("/skills")) return { ok: true, status: 200, json: async () => ({ data: [] }) };
+      if (url.includes("/compilations/run1/save-as-prompt")) return { ok: true, status: 201, json: async () => ({ id: "p1", title: "将白天改成蓝调夜景" }) };
       if (init?.method === "POST") return { ok: true, status: 201, json: async () => ({ id: "run1", contentZh: "保持空间结构，将白天改成蓝调夜景。", contentEn: "Preserve the spatial structure and change daylight to blue hour.", translationStatus: "SUCCEEDED" }) };
       throw new Error(`unexpected ${url}`);
     }));
@@ -24,5 +25,7 @@ describe("GeneratorPage", () => {
 
     expect(await screen.findByText("保持空间结构，将白天改成蓝调夜景。")).toBeVisible();
     expect(screen.getByText("Preserve the spatial structure and change daylight to blue hour.")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "保存到 Prompt 库" }));
+    expect(await screen.findByText("已保存到 Prompt 库")).toBeVisible();
   });
 });

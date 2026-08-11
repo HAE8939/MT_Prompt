@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Clipboard, Sparkles } from "lucide-react";
+import { Check, Clipboard, Save, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api-client";
 import "./generator.css";
@@ -31,6 +31,7 @@ export function GeneratorPage() {
   useEffect(() => { setSkillIds([]); }, [selectedTask?.id]);
 
   const compileMutation = useMutation({ mutationFn: () => api<Compilation>("/compiler/compile", { method: "POST", body: JSON.stringify({ modelTaskId: selectedTask?.id, templateId: selectedTemplate?.id, skillIds, inputValues: { [inputField?.name ?? "requirement"]: requirement } }) }) });
+  const saveMutation = useMutation({ mutationFn: () => api<{ id: string; title: string }>(`/compilations/${compileMutation.data?.id}/save-as-prompt`, { method: "POST", body: JSON.stringify({ title: requirement.trim().slice(0, 160) }) }) });
   function toggleSkill(id: string) { setSkillIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]); }
   async function copy(language: "zh" | "en", value: string | null) { if (!value) return; await navigator.clipboard.writeText(value); setCopied(language); window.setTimeout(() => setCopied(null), 1200); }
 
@@ -45,10 +46,10 @@ export function GeneratorPage() {
         <label>模板<select aria-label="模板" value={selectedTemplate.id} onChange={(event) => setTemplateId(event.target.value)}>{selectedTask.templates.map((template) => <option key={template.id} value={template.id}>{template.nameZh}</option>)}</select></label>
         <label>{inputField?.labelZh ?? "任务要求"}<textarea aria-label="任务要求" value={requirement} onChange={(event) => setRequirement(event.target.value)} placeholder="用中文描述你想生成或修改的内容" rows={8} /></label>
         <fieldset className="skill-picker"><legend>可选 Skill</legend>{skillsQuery.data?.length ? skillsQuery.data.map((skill) => <label key={skill.id}><input type="checkbox" checked={skillIds.includes(skill.id)} onChange={() => toggleSkill(skill.id)} />{skill.nameZh}<span>{skill.category}</span></label>) : <p>此任务暂无可选 Skill</p>}</fieldset>
-        <button className="primary-button generator-submit" disabled={!requirement.trim() || compileMutation.isPending} onClick={() => compileMutation.mutate()}><Sparkles size={16} />{compileMutation.isPending ? "正在生成" : "生成 Prompt"}</button>
+        <button className="primary-button generator-submit" disabled={!requirement.trim() || compileMutation.isPending} onClick={() => { saveMutation.reset(); compileMutation.mutate(); }}><Sparkles size={16} />{compileMutation.isPending ? "正在生成" : "生成 Prompt"}</button>
         {compileMutation.isError ? <p className="form-error">{compileMutation.error.message}</p> : null}
       </section>
-      <section className="generator-result" aria-live="polite"><header><h2>生成结果</h2>{compileMutation.data ? <span className="result-status">{compileMutation.data.translationStatus === "SUCCEEDED" ? "双语完成" : "等待翻译"}</span> : null}</header>{compileMutation.data ? <div className="result-content"><PromptResult title="中文 Prompt" value={compileMutation.data.contentZh} language="zh" copied={copied} onCopy={copy} /><PromptResult title="English Prompt" value={compileMutation.data.contentEn} language="en" copied={copied} onCopy={copy} /></div> : <div className="state-panel"><Sparkles size={28} /><h2>等待生成</h2><p>填写中文任务要求后，生成符合当前模型的双语 Prompt。</p></div>}</section>
+      <section className="generator-result" aria-live="polite"><header><h2>生成结果</h2>{compileMutation.data ? <span className="result-status">{compileMutation.data.translationStatus === "SUCCEEDED" ? "双语完成" : "等待翻译"}</span> : null}</header>{compileMutation.data ? <div className="result-content"><PromptResult title="中文 Prompt" value={compileMutation.data.contentZh} language="zh" copied={copied} onCopy={copy} /><PromptResult title="English Prompt" value={compileMutation.data.contentEn} language="en" copied={copied} onCopy={copy} /><div className="result-actions"><button className="primary-button" disabled={saveMutation.isPending || saveMutation.isSuccess} onClick={() => saveMutation.mutate()}><Save size={15} />{saveMutation.isPending ? "保存中..." : saveMutation.isSuccess ? "已保存到 Prompt 库" : "保存到 Prompt 库"}</button>{saveMutation.isError ? <p className="form-error">{saveMutation.error.message}</p> : null}</div></div> : <div className="state-panel"><Sparkles size={28} /><h2>等待生成</h2><p>填写中文任务要求后，生成符合当前模型的双语 Prompt。</p></div>}</section>
     </div> : null}
   </main>;
 }
