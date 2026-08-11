@@ -14,13 +14,13 @@ export async function registerAssetRoutes(app: FastifyInstance, prisma: PrismaCl
     const roleField = file.fields.role;
     const roleValue = roleField && !Array.isArray(roleField) && "value" in roleField ? roleField.value : undefined;
     if (typeof roleValue !== "string" || !["COVER", "REFERENCE", "RESULT", "COMPARISON"].includes(roleValue)) {
-      return reply.code(400).send({ error: { code: "ASSET_ROLE_REQUIRED", message: "请选择图片用途。" } });
+      return reply.code(400).send({ error: { code: "ASSET_ROLE_REQUIRED", message: "请选择素材用途。" } });
     }
     try {
       const asset = await service.upload(request.params.promptId, { buffer: await file.toBuffer(), mimeType: file.mimetype, originalName: file.filename, role: roleValue as "COVER" | "REFERENCE" | "RESULT" | "COMPARISON" });
       return reply.code(201).send(asset);
     } catch (error) {
-      if (error instanceof Error && error.message === "UNSUPPORTED_ASSET") return reply.code(415).send({ error: { code: error.message, message: "仅支持 PNG、JPEG、WebP 和 AVIF。" } });
+      if (error instanceof Error && error.message === "UNSUPPORTED_ASSET") return reply.code(415).send({ error: { code: error.message, message: "仅支持 PNG、JPEG、WebP、AVIF、MP4、WebM 和 MOV。" } });
       if (error instanceof Error && error.message === "ASSET_TOO_LARGE") return reply.code(413).send({ error: { code: error.message, message: "图片不能超过 25 MB。" } });
       throw error;
     }

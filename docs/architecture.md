@@ -36,15 +36,17 @@ The API service layer owns transactions and filesystem coordination. React compo
 
 ## API Areas
 
-- `/api/v1/prompts`, `/versions`: Prompt CRUD, filters, and history.
-- `/api/v1/prompts/:id/assets`, `/assets/:id`: image upload, content, and deletion.
+- `/api/v1/prompts`, `/versions`: Prompt CRUD, server pagination/sorting, bulk updates, duplicate reports, recycle-bin restore, AI proposal versions, and history diff.
+- `/api/v1/prompts/:id/assets`, `/assets/:id`: image/video upload, content streaming, and deletion.
 - `/api/v1/models`, `/templates`, `/skills`, `/personal-rules`: knowledge catalog and user-owned edits.
 - `/api/v1/compiler/compile`, `/compilations/:id/*`: compile, translate retry, and save.
 - `/api/v1/settings/*`: translation configuration and connection test.
 - `/api/v1/exports`: create and download a backup archive.
-- `/api/v1/imports/validate`, `/api/v1/integrity`: validate backup archives and scan local asset consistency.
+- `/api/v1/imports/validate`, `/api/v1/imports`, `/api/v1/integrity`: validate, merge, or replace backup archives and scan local asset consistency.
 - `/api/v1/ai/*`: explicit user-triggered Prompt assistance through a generic OpenAI-compatible Provider.
 
 ## Security and Scope
 
 Translation secrets are stored in Windows Credential Manager, never in SQLite or exported ZIP files. The current product is single-user and local-only; authentication, remote sync, and multi-user authorization are intentionally outside V1.
+
+Restore writes are staged and run with a Prisma transaction. REPLACE requires a successful automatic export first; overwritten asset files are journaled and restored if the transaction fails.

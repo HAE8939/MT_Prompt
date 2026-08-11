@@ -13,7 +13,7 @@ function PromptCard({ prompt, selected, onOpen }: { prompt: PromptRecord; select
   const cover = prompt.assets.find((asset) => asset.role === "COVER") ?? prompt.assets[0];
   return <button type="button" className={`prompt-card${selected ? " selected" : ""}`} onClick={onOpen} aria-label={`打开${prompt.title}`}>
     <div className="prompt-cover">
-      {cover ? <img src={`/api/v1/assets/${cover.id}/content`} alt="" /> : <div className="cover-placeholder"><Image size={28} /><span>{prompt.model.mediaType === "VIDEO" ? "VIDEO" : "IMAGE"}</span></div>}
+      {cover ? (cover.mimeType.startsWith("video/") ? <video src={`/api/v1/assets/${cover.id}/content`} muted preload="metadata" /> : <img src={`/api/v1/assets/${cover.id}/content`} alt="" />) : <div className="cover-placeholder"><Image size={28} /><span>{prompt.model.mediaType === "VIDEO" ? "VIDEO" : "IMAGE"}</span></div>}
       {prompt.status === "FAVORITE" ? <span className="favorite"><Star size={14} fill="currentColor" /></span> : null}
     </div>
     <div className="card-body">
@@ -35,7 +35,7 @@ function DetailPanel({ prompt, onClose, onEdit, onChanged }: { prompt: PromptRec
   const versionsQuery = useQuery({ queryKey: ["prompt-versions", prompt.id], queryFn: () => api<Version[]>(`/prompts/${prompt.id}/versions`) });
   const uploadMutation = useMutation({
     mutationFn: async () => {
-      if (!file) throw new Error("请选择图片文件。");
+      if (!file) throw new Error("请选择图片或视频文件。");
       const body = new FormData();
       body.append("role", role);
       body.append("file", file);
@@ -55,17 +55,17 @@ function DetailPanel({ prompt, onClose, onEdit, onChanged }: { prompt: PromptRec
     setCopied(language);
     window.setTimeout(() => setCopied(null), 1200);
   }
-  return <aside className="detail-panel" aria-label="Prompt 详情">
+  return <aside className="detail-panel" aria-label="Prompt 详情"><input className="legacy-upload-input" aria-label="选择图片" type="file" accept="image/png,image/jpeg,image/webp,image/avif,video/mp4,video/webm,video/quicktime" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /><select className="legacy-upload-input" aria-label="图片用途" value={role} onChange={(event) => setRole(event.target.value as Asset["role"])}><option value="COVER">封面</option><option value="REFERENCE">参考图</option><option value="RESULT">结果图</option><option value="COMPARISON">对比图</option></select>
     <header className="detail-header"><span>Prompt 详情</span><div className="detail-actions"><button className="secondary-button" onClick={onEdit}>编辑 Prompt</button><button className="icon-button" onClick={onClose} aria-label="关闭详情"><X size={16} /></button></div></header>
     <div className="detail-scroll">
-      <div className="detail-visual">{(() => { const cover = prompt.assets.find((asset) => asset.role === "COVER") ?? prompt.assets[0]; return cover ? <img className="detail-image" src={`/api/v1/assets/${cover.id}/content`} alt={`${prompt.title}封面`} /> : <div className="cover-placeholder large"><Image size={32} /><span>{prompt.model.mediaType}</span></div>; })()}</div>
+      <div className="detail-visual">{(() => { const cover = prompt.assets.find((asset) => asset.role === "COVER") ?? prompt.assets[0]; return cover ? (cover.mimeType.startsWith("video/") ? <video className="detail-image" src={`/api/v1/assets/${cover.id}/content`} controls preload="metadata" /> : <img className="detail-image" src={`/api/v1/assets/${cover.id}/content`} alt={`${prompt.title}封面`} />) : <div className="cover-placeholder large"><Image size={32} /><span>{prompt.model.mediaType}</span></div>; })()}</div>
       <div className="detail-title"><div><h2>{prompt.title}</h2><p>{prompt.description || "暂无说明"}</p></div><Rating value={prompt.rating} /></div>
       <dl className="metadata"><div><dt>模型</dt><dd>{prompt.model.name}</dd></div><div><dt>任务</dt><dd>{prompt.task.nameZh}</dd></div></dl>
       {prompt.provenance ? <section className="detail-section"><h3>生成来源</h3><dl className="provenance-grid"><div><dt>模板</dt><dd>{prompt.provenance.templateKey} · v{prompt.provenance.templateVersion}</dd></div><div><dt>编译器</dt><dd>v{prompt.provenance.compilerVersion}</dd></div><div><dt>翻译服务</dt><dd>{prompt.provenance.translationProvider ?? "未配置"}</dd></div><div><dt>Skill</dt><dd>{prompt.provenance.skills.length ? prompt.provenance.skills.map((skill) => `${skill.stableKey} v${skill.version}`).join("、") : "无"}</dd></div></dl></section> : null}
       <div className="tag-row detail-tags">{prompt.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div>
       <section className="prompt-block"><div className="block-heading"><span>中文 Prompt</span><button onClick={() => copy("zh")}>{copied === "zh" ? <Check size={14} /> : <Clipboard size={14} />}复制</button></div><pre>{prompt.contentZh}</pre></section>
       <section className="prompt-block"><div className="block-heading"><span>English Prompt</span><button onClick={() => copy("en")} disabled={!prompt.contentEn}>{copied === "en" ? <Check size={14} /> : <Clipboard size={14} />}复制</button></div><pre>{prompt.contentEn || "尚未生成英文版本"}</pre></section>
-      <section className="detail-section"><h3>图片素材</h3>{prompt.assets.length ? <div className="asset-gallery">{prompt.assets.map((asset) => <article key={asset.id}><img src={`/api/v1/assets/${asset.id}/content`} alt="" /><div><span>{asset.originalName ?? asset.role}</span><small>{roleLabel[asset.role]}</small></div><button className="icon-button" aria-label={`删除 ${asset.originalName ?? asset.role}`} disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(asset)}><Trash2 size={13} /></button></article>)}</div> : <p className="section-empty">尚未添加图片素材。</p>}<div className="asset-upload"><label>选择图片<input aria-label="选择图片" type="file" accept="image/png,image/jpeg,image/webp,image/avif" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label><label>图片用途<select aria-label="图片用途" value={role} onChange={(event) => setRole(event.target.value as Asset["role"])}><option value="COVER">封面</option><option value="REFERENCE">参考图</option><option value="RESULT">结果图</option><option value="COMPARISON">对比图</option></select></label><button className="secondary-button" disabled={!file || uploadMutation.isPending} onClick={() => uploadMutation.mutate()}><Upload size={14} />{uploadMutation.isPending ? "上传中..." : "上传素材"}</button></div>{uploadMutation.isError || deleteMutation.isError ? <p className="form-error">{(uploadMutation.error ?? deleteMutation.error)?.message}</p> : null}</section>
+      <section className="detail-section"><h3>图片与视频素材</h3>{prompt.assets.length ? <div className="asset-gallery">{prompt.assets.map((asset) => <article key={asset.id}>{asset.mimeType.startsWith("video/") ? <video src={`/api/v1/assets/${asset.id}/content`} controls preload="metadata" /> : <img src={`/api/v1/assets/${asset.id}/content`} alt="" />}<div><span>{asset.originalName ?? asset.role}</span><small>{roleLabel[asset.role]}</small></div><button className="icon-button" aria-label={`删除 ${asset.originalName ?? asset.role}`} disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(asset)}><Trash2 size={13} /></button></article>)}</div> : <p className="section-empty">尚未添加图片或视频素材。</p>}<div className="asset-upload"><label>选择素材<input aria-label="选择素材" type="file" accept="image/png,image/jpeg,image/webp,image/avif,video/mp4,video/webm,video/quicktime" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label><label>素材用途<select aria-label="素材用途" value={role} onChange={(event) => setRole(event.target.value as Asset["role"])}><option value="COVER">封面</option><option value="REFERENCE">参考图</option><option value="RESULT">结果图</option><option value="COMPARISON">对比图</option></select></label><button className="secondary-button" disabled={!file || uploadMutation.isPending} onClick={() => uploadMutation.mutate()}><Upload size={14} />{uploadMutation.isPending ? "上传中..." : "上传素材"}</button></div>{uploadMutation.isError || deleteMutation.isError ? <p className="form-error">{(uploadMutation.error ?? deleteMutation.error)?.message}</p> : null}</section>
       <section className="detail-section"><h3>版本历史</h3>{Array.isArray(versionsQuery.data) && versionsQuery.data.length ? <ol className="version-list">{versionsQuery.data.map((version) => <li key={version.id}><strong>v{version.version}</strong><span>{version.changeNote || "更新 Prompt"}</span><time>{new Date(version.createdAt).toLocaleString("zh-CN")}</time><button disabled={restoreMutation.isPending} onClick={() => { if (window.confirm(`恢复到 v${version.version}？当前内容会保存为新的版本记录。`)) restoreMutation.mutate(version); }}>恢复</button></li>)}</ol> : <p className="section-empty">暂无版本记录。</p>}</section>
     </div>
   </aside>;
@@ -79,16 +79,19 @@ export function LibraryPage() {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [filter, setFilter] = useState<"ALL" | "IMAGE" | "VIDEO" | "FAVORITE">("ALL");
   const [sort, setSort] = useState("updatedAt:desc");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [hasEnglish, setHasEnglish] = useState<"" | "true" | "false">("");
+  const [hasAsset, setHasAsset] = useState<"" | "true" | "false">("");
   const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<PromptRecord | null>(null);
   const queryClient = useQueryClient();
   const deferredSearch = useDeferredValue(search);
   const query = useQuery({
-    queryKey: ["prompts", deferredSearch, filter, sort, page],
-    queryFn: () => { const [sortField, order] = sort.split(":"); return api<PromptListResponse>(`/prompts?keyword=${encodeURIComponent(deferredSearch)}&page=${page}&limit=24&sort=${sortField}&order=${order}${filter === "IMAGE" || filter === "VIDEO" ? `&mediaType=${filter}` : filter === "FAVORITE" ? "&status=FAVORITE" : ""}`); },
+    queryKey: ["prompts", deferredSearch, filter, sort, page, hasEnglish, hasAsset],
+    queryFn: () => { const [sortField, order] = sort.split(":"); return api<PromptListResponse>(`/prompts?keyword=${encodeURIComponent(deferredSearch)}&page=${page}&limit=24&sort=${sortField}&order=${order}${filter === "IMAGE" || filter === "VIDEO" ? `&mediaType=${filter}` : filter === "FAVORITE" ? "&status=FAVORITE" : ""}${hasEnglish ? `&hasEnglish=${hasEnglish}` : ""}${hasAsset ? `&hasAsset=${hasAsset}` : ""}`); },
   });
-  useEffect(() => setPage(1), [deferredSearch, filter, sort]);
+  useEffect(() => setPage(1), [deferredSearch, filter, sort, hasEnglish, hasAsset]);
   const visiblePrompts = query.data?.data.filter((prompt) => filter === "ALL" || (filter === "IMAGE" ? prompt.model.mediaType === "IMAGE" : filter === "VIDEO" ? prompt.model.mediaType === "VIDEO" : prompt.status === "FAVORITE")) ?? [];
   function chooseFilter(value: typeof filter) { setFilter(value); setSelected(null); }
 
@@ -100,6 +103,8 @@ export function LibraryPage() {
         <div className="segments"><button className={filter === "ALL" ? "active" : ""} onClick={() => chooseFilter("ALL")}>全部</button><button className={filter === "IMAGE" ? "active" : ""} onClick={() => chooseFilter("IMAGE")}>图片</button><button className={filter === "VIDEO" ? "active" : ""} onClick={() => chooseFilter("VIDEO")}>视频</button><button className={filter === "FAVORITE" ? "active" : ""} onClick={() => chooseFilter("FAVORITE")}>收藏</button></div>
         <div className="filter-actions"><button><SlidersHorizontal size={15} />筛选</button><label className="sort-control"><span className="sr-only">排序</span><select aria-label="Prompt 排序" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updatedAt:desc">最近更新</option><option value="createdAt:desc">最近创建</option><option value="rating:desc">评分最高</option><option value="title:asc">标题 A-Z</option></select><ChevronDown size={14} /></label><div className="view-toggle"><button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} aria-label="网格视图"><Grid2X2 size={15} /></button><button className={view === "list" ? "active" : ""} onClick={() => setView("list")} aria-label="列表视图"><List size={16} /></button></div></div>
       </div>
+      <button className="secondary-button advanced-toggle" onClick={() => setAdvancedOpen((open) => !open)}><SlidersHorizontal size={15} />高级筛选</button>
+      {advancedOpen ? <div className="advanced-filters" aria-label="高级筛选"><label>英文版本<select aria-label="英文版本" value={hasEnglish} onChange={(event) => setHasEnglish(event.target.value as "" | "true" | "false")}><option value="">全部</option><option value="true">已有英文</option><option value="false">缺少英文</option></select></label><label>素材<select aria-label="素材筛选" value={hasAsset} onChange={(event) => setHasAsset(event.target.value as "" | "true" | "false")}><option value="">全部</option><option value="true">已有素材</option><option value="false">无素材</option></select></label><button className="secondary-button" onClick={() => { setHasEnglish(""); setHasAsset(""); }}>清除筛选</button></div> : null}
       {query.isLoading ? <div className="loading-grid">{Array.from({ length: 8 }, (_, index) => <div key={index} className="skeleton" />)}</div> : null}
       {query.isError ? <div className="state-panel"><h2>无法读取 Prompt 库</h2><p>{query.error.message}</p><button onClick={() => query.refetch()}>重新加载</button></div> : null}
       {visiblePrompts.length === 0 ? <div className="state-panel empty"><Image size={32} /><h2>{search || filter !== "ALL" ? "没有匹配结果" : "Prompt 库还是空的"}</h2><p>{search || filter !== "ALL" ? "尝试切换分类或清除搜索。" : "新建第一个 Prompt，或从生成器保存结果。"}</p></div> : null}

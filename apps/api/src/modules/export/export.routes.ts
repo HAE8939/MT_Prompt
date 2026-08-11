@@ -23,7 +23,20 @@ export async function registerExportRoutes(app: FastifyInstance, service: Export
   if (importer) app.post("/api/v1/imports/validate", async (request, reply) => {
     const file = await request.file();
     if (!file) return reply.code(400).send({ error: { code: "FILE_REQUIRED", message: "请选择 PromptVault ZIP 备份。" } });
-    try { return importer.validate(await file.toBuffer()); }
+    try { return await importer.preview(await file.toBuffer()); }
     catch (error) { return reply.code(400).send({ error: { code: error instanceof Error ? error.message : "IMPORT_INVALID", message: "备份文件校验失败。" } }); }
+  });
+  if (importer) app.post<{ Querystring: { mode?: string } }>("/api/v1/imports", async (request, reply) => {
+    const mode = request.query.mode;
+    if (mode !== "MERGE" && mode !== "REPLACE") {
+      return reply.code(400).send({ error: { code: "IMPORT_MODE_REQUIRED", message: "请选择合并或完整替换恢复模式。" } });
+    }
+    const file = await request.file();
+    if (!file) return reply.code(400).send({ error: { code: "FILE_REQUIRED", message: "请选择 PromptVault ZIP 备份。" } });
+    try { return await importer.restore(await file.toBuffer(), mode); }
+    catch (error) {
+      const code = error instanceof Error ? error.message : "IMPORT_FAILED";
+      return reply.code(400).send({ error: { code, message: code === "IMPORT_PRE_BACKUP_FAILED" ? "自动创建恢复前备份失败，未修改任何数据。" : "恢复备份失败，未完成导入。" } });
+    }
   });
 }

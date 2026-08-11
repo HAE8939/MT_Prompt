@@ -36,4 +36,17 @@ describe("compilePrompt", () => {
     const result = compilePrompt({ ...fixture, personalRules: [...fixture.personalRules, { ...fixture.personalRules[0], key: "duplicate" }] });
     expect(result.contentZh.match(/保持材质纹理。/g)).toHaveLength(1);
   });
+
+  it("applies field defaults and ignores inactive conditional fields", () => {
+    const result = compilePrompt({ ...fixture, template: { ...fixture.template, bodyZh: "{{requirements}} {{camera}}", bodyEn: "{{requirements}} {{camera}}", fields: [
+      { name: "requirements", required: true },
+      { name: "camera", required: true, defaultZh: "自然视角", defaultEn: "Natural perspective", when: { field: "requirements", equals: "禁用相机" } },
+    ] }, inputValues: { requirements: fixture.inputValues.requirements } });
+    expect(result.contentZh).toContain("仅修改灯光，不改变空间结构。");
+    expect(result.contentZh).not.toContain("自然视角");
+  });
+
+  it("rejects an active required field without a value", () => {
+    expect(() => compilePrompt({ ...fixture, template: { ...fixture.template, fields: [{ name: "camera", required: true }] }, inputValues: {} })).toThrow("TEMPLATE_FIELD_REQUIRED");
+  });
 });

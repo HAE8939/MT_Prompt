@@ -24,8 +24,8 @@ export type AssetRepository = {
   }): Promise<unknown>;
 };
 
-const allowedMime = new Set(["image/png", "image/jpeg", "image/webp", "image/avif"]);
-const extensionByMime: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/avif": "avif" };
+const allowedMime = new Set(["image/png", "image/jpeg", "image/webp", "image/avif", "video/mp4", "video/webm", "video/quicktime"]);
+const extensionByMime: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/avif": "avif", "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" };
 const maxBytes = 25 * 1024 * 1024;
 
 export class AssetService {

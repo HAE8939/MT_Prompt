@@ -58,6 +58,7 @@ model Prompt {
   compilationRunId String?         @unique
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
+  deletedAt        DateTime?
   modelTask        ModelTask       @relation(fields: [modelTaskId], references: [id], onDelete: Restrict)
   category         Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   compilationRun   CompilationRun? @relation(fields: [compilationRunId], references: [id], onDelete: SetNull)
@@ -68,6 +69,7 @@ model Prompt {
   @@index([updatedAt])
   @@index([modelTaskId])
   @@index([categoryId])
+  @@index([deletedAt])
 }
 
 model Asset {

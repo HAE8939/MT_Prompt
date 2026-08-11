@@ -10,19 +10,20 @@ export class ExportService {
   constructor(private readonly prisma: PrismaClient, private readonly storageRoot: string, private readonly exportRoot: string) {}
 
   async createExport() {
-    const [prompts, models, templates, skills, personalRules, categories, tags] = await Promise.all([
+    const [prompts, models, templates, skills, personalRules, categories, tags, compilationRuns] = await Promise.all([
       this.prisma.prompt.findMany({ include: { tags: { include: { tag: true } }, assets: true, versions: true }, orderBy: { createdAt: "asc" } }),
       this.prisma.model.findMany({ include: { tasks: true }, orderBy: { order: "asc" } }),
-      this.prisma.promptTemplate.findMany({ orderBy: [{ stableKey: "asc" }, { version: "asc" }] }),
+      this.prisma.promptTemplate.findMany({ include: { recommendedSkills: true }, orderBy: [{ stableKey: "asc" }, { version: "asc" }] }),
       this.prisma.promptSkill.findMany({ include: { modelTasks: true }, orderBy: [{ stableKey: "asc" }, { version: "asc" }] }),
       this.prisma.personalRule.findMany({ orderBy: [{ stableKey: "asc" }, { version: "asc" }] }),
       this.prisma.category.findMany({ orderBy: { name: "asc" } }),
       this.prisma.tag.findMany({ orderBy: { name: "asc" } }),
+      this.prisma.compilationRun.findMany({ include: { skills: true }, orderBy: { createdAt: "asc" } }),
     ]);
     const json = (value: unknown) => Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
     const entries: Entry[] = [
       { name: "prompts.json", data: json(prompts) },
-      { name: "knowledge.json", data: json({ models, templates, skills, personalRules, categories, tags }) },
+      { name: "knowledge.json", data: json({ models, templates, skills, personalRules, categories, tags, compilationRuns }) },
     ];
     const missingAssets: string[] = [];
     for (const asset of prompts.flatMap((prompt) => prompt.assets)) {

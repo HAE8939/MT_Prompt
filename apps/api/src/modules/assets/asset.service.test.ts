@@ -37,4 +37,13 @@ describe("AssetService", () => {
     await expect(service.upload("prompt-id", { ...file, buffer: Buffer.alloc(25 * 1024 * 1024 + 1) })).rejects.toThrow("ASSET_TOO_LARGE");
     expect(storage.put).not.toHaveBeenCalled();
   });
+
+  it("accepts common video formats and preserves their extension", async () => {
+    const storage = storageFake();
+    const repository: AssetRepository = { create: vi.fn().mockResolvedValue({ id: "video-1", mimeType: "video/mp4" }) };
+    const service = new AssetService(storage, repository);
+    await service.upload("prompt-id", { ...file, mimeType: "video/mp4", originalName: "clip.mp4" });
+    expect(storage.put).toHaveBeenCalledWith(expect.objectContaining({ extension: "mp4" }));
+    expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ mimeType: "video/mp4" }));
+  });
 });

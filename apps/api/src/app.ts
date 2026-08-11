@@ -41,7 +41,8 @@ export async function buildApp(options: AppOptions = {}) {
   await registerKnowledgeRoutes(app, new KnowledgeService(prisma));
   const settings = new SettingsService(options.credentialStore ?? new WindowsCredentialStore());
   await registerSettingsRoutes(app, settings);
-  await registerExportRoutes(app, new ExportService(prisma, storageRoot, join(import.meta.dirname, "..", "..", "..", "exports")), new IntegrityService(prisma, storageRoot), new ImportService());
+  const exportService = new ExportService(prisma, storageRoot, join(import.meta.dirname, "..", "..", "..", "exports"));
+  await registerExportRoutes(app, exportService, new IntegrityService(prisma, storageRoot), new ImportService(prisma, storageRoot, exportService));
   await registerCompilerRoutes(app, new CompilerService(prisma, options.translator ?? (() => settings.getProvider())));
   await registerAiRoutes(app, new AiService(() => settings.getAiProvider()));
 

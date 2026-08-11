@@ -64,4 +64,12 @@ describe("CompilerService", () => {
       await prisma.prompt.delete({ where: { id: saved.id } });
     }
   });
+
+  it("replays the persisted compilation snapshot", async () => {
+    const task = await prisma.modelTask.findFirstOrThrow();
+    const template = await prisma.promptTemplate.findFirstOrThrow({ where: { modelTaskId: task.id } });
+    const service = new CompilerService(prisma, { id: "openai", translate: vi.fn().mockResolvedValue({ requirements: "Replay" }) });
+    const run = await service.compile({ modelTaskId: task.id, templateId: template.id, skillIds: [], inputValues: { requirements: "回放测试" } });
+    await expect(service.replay(run.id)).resolves.toMatchObject({ id: run.id, contentZh: run.contentZh, rulesSnapshot: run.rulesSnapshot });
+  });
 });

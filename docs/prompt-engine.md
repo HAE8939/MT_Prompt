@@ -22,6 +22,7 @@ Translation failure does not discard the Chinese result. The persisted run recor
 4. Orders sections using `ModelTask.sectionOrder`, then orders contributions by descending priority.
 5. Removes exact duplicate bilingual contributions.
 6. Joins contributions with a blank line and returns metadata about the selected knowledge.
+7. Applies template field defaults and validates required fields; conditional fields are ignored when their predicate is inactive.
 
 The same inputs and knowledge versions produce the same output. Provider translation is outside the pure compiler boundary.
 
@@ -46,3 +47,5 @@ After generation, the saved Prompt behaves like a normal library record. Editing
 ## AI Assistance
 
 AI optimization is isolated from deterministic compilation. A generic OpenAI-compatible Provider sends requests only after an explicit user action and returns an unsaved proposal for optimization, variants, consistency checking, or model rewriting. The Provider base URL and model are configuration; the API key is stored only in Windows Credential Manager. Provider output never silently overwrites a Prompt.
+
+An accepted proposal is saved through `/api/v1/prompts/:id/ai-proposals`, which updates current content and creates a new `PromptVersion` in the same transaction.

@@ -7,3 +7,6 @@
 .pagination button { min-height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 5px; background: var(--raised); color: var(--text); }
 .pagination button:disabled { opacity: .45; }
 .version-list li button{grid-column:2;justify-self:start;border:0;background:transparent;color:#b8a4e8;font-size:9px;cursor:pointer;padding:0}
+.legacy-upload-input{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.asset-gallery video{width:48px;height:38px;object-fit:cover;border-radius:3px}
+.advanced-toggle{display:flex;align-items:center;gap:6px;margin:0 0 10px}.advanced-filters{display:flex;align-items:end;flex-wrap:wrap;gap:10px;margin-bottom:12px;padding:10px;border:1px solid var(--border);border-radius:5px;background:var(--surface)}.advanced-filters label{display:grid;gap:4px;color:#888;font-size:10px}.advanced-filters select{height:32px;min-width:130px;border:1px solid var(--border);border-radius:4px;background:#191b1d;color:#ddd;padding:0 8px}

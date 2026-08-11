@@ -57,6 +57,18 @@ describe("LibraryPage", () => {
     expect(screen.queryByText("视频 Prompt")).not.toBeInTheDocument();
   });
 
+  it("sends advanced English and asset filters to the server", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [prompt], total: 1, page: 1, limit: 24 }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter><LibraryPage /></MemoryRouter></QueryClientProvider>);
+    await screen.findByText("现代东方豪宅客厅");
+    await userEvent.click(screen.getByRole("button", { name: "高级筛选" }));
+    await userEvent.selectOptions(screen.getByLabelText("英文版本"), "true");
+    await userEvent.selectOptions(screen.getByLabelText("素材筛选"), "false");
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("hasEnglish=true&hasAsset=false"), expect.anything()));
+  });
+
   it("shows the cover image and saves edits from the detail panel", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).includes("/models")) return { ok: true, json: async () => [{ id: "m1", name: "GPT-IMAGE 2", tasks: [{ id: "t1", nameZh: "场景保持修改" }] }] };

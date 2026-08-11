@@ -9,7 +9,8 @@ type SettingsStatus = { translation: { provider: Provider | null; configured: bo
 type ExportResult = { filename: string; downloadUrl: string };
 type AiStatus = { configured: boolean; baseUrl: string | null; model: string | null };
 type IntegrityReport = { checkedAt: string; assetCount: number; missingFiles: string[]; orphanFiles: string[] };
-type ImportValidation = { valid: true; schemaVersion: number; promptCount: number; assetCount: number; missingAssets: string[] };
+type ImportValidation = { valid: true; schemaVersion: number; promptCount: number; assetCount: number; missingAssets: string[]; conflicts: string[] };
+type ImportResult = { mode: "MERGE" | "REPLACE"; promptCount: number; restoredAssets: number; conflicts: string[]; missingAssets: string[] };
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -40,6 +41,18 @@ export function SettingsPage() {
   const testAiMutation = useMutation({ mutationFn: () => api<void>("/settings/ai-provider/test", { method: "POST" }) });
   const integrityQuery = useQuery({ queryKey: ["integrity"], queryFn: () => api<IntegrityReport>("/integrity"), enabled: false });
   const validateImportMutation = useMutation({ mutationFn: () => { if (!backupFile) throw new Error("请选择 ZIP 备份。"); const body = new FormData(); body.append("file", backupFile); return api<ImportValidation>("/imports/validate", { method: "POST", body }); } });
+  const restoreImportMutation = useMutation({
+    mutationFn: (mode: "MERGE" | "REPLACE") => {
+      if (!backupFile) throw new Error("请选择 ZIP 备份。");
+      const body = new FormData();
+      body.append("file", backupFile);
+      return api<ImportResult>(`/imports?mode=${mode}`, { method: "POST", body });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["prompts"] });
+      await queryClient.invalidateQueries({ queryKey: ["knowledge"] });
+    },
+  });
 
   return <main className="settings-page">
     <header className="page-header"><div><h1>设置</h1><span className="count">本机凭据、翻译服务与数据管理</span></div></header>
@@ -69,7 +82,20 @@ export function SettingsPage() {
       <header><div className="section-icon"><DatabaseBackup size={17} /></div><div><h2 id="export-heading">数据备份</h2><p>导出 Prompt、知识库记录和本地资产。</p></div></header>
       <div className="export-panel"><button className="primary-button" disabled={exportMutation.isPending} onClick={() => exportMutation.mutate()}><DatabaseBackup size={15} />{exportMutation.isPending ? "正在生成..." : "生成数据备份"}</button>{exportMutation.data ? <a className="secondary-button download-link" href={exportMutation.data.downloadUrl} download={exportMutation.data.filename}><Download size={15} />下载备份</a> : null}{exportMutation.isError ? <p className="form-error">{exportMutation.error.message}</p> : null}</div>
       <div className="export-panel"><button className="secondary-button" disabled={integrityQuery.isFetching} onClick={() => void integrityQuery.refetch()}><RefreshCw size={15} />检查数据完整性</button>{integrityQuery.data ? <p className={integrityQuery.data.missingFiles.length || integrityQuery.data.orphanFiles.length ? "form-error" : "success-message"}><ShieldCheck size={14} />已检查 {integrityQuery.data.assetCount} 个素材，缺失 {integrityQuery.data.missingFiles.length}，孤立 {integrityQuery.data.orphanFiles.length}</p> : null}</div>
-      <div className="settings-form"><label>校验备份文件<input aria-label="选择备份 ZIP" type="file" accept=".zip,application/zip" onChange={(event) => setBackupFile(event.target.files?.[0] ?? null)} /></label><button className="secondary-button" disabled={!backupFile || validateImportMutation.isPending} onClick={() => validateImportMutation.mutate()}>校验备份</button>{validateImportMutation.data ? <p className="success-message">备份有效：{validateImportMutation.data.promptCount} 条 Prompt，{validateImportMutation.data.assetCount} 个素材</p> : null}{validateImportMutation.isError ? <p className="form-error">{validateImportMutation.error.message}</p> : null}</div>
+      <div className="settings-form">
+        <label>恢复备份文件<input aria-label="选择备份 ZIP" type="file" accept=".zip,application/zip" onChange={(event) => { setBackupFile(event.target.files?.[0] ?? null); validateImportMutation.reset(); restoreImportMutation.reset(); }} /></label>
+        <button className="secondary-button" disabled={!backupFile || validateImportMutation.isPending} onClick={() => validateImportMutation.mutate()}>{validateImportMutation.isPending ? "校验中..." : "校验备份"}</button>
+        {validateImportMutation.data ? <div className="import-summary">
+          <p className="success-message">备份有效：{validateImportMutation.data.promptCount} 条 Prompt，{validateImportMutation.data.assetCount} 个素材。</p>
+          <p className={validateImportMutation.data.conflicts.length ? "form-error" : "success-message"}>发现 {validateImportMutation.data.conflicts.length} 条 ID 冲突，缺失 {validateImportMutation.data.missingAssets.length} 个素材。</p>
+          <div className="settings-actions">
+            <button className="primary-button" disabled={restoreImportMutation.isPending} onClick={() => restoreImportMutation.mutate("MERGE")}>合并恢复</button>
+            <button className="danger-button" disabled={restoreImportMutation.isPending} onClick={() => { if (window.confirm("完整替换会先自动备份，再清空当前数据并恢复。确定继续吗？")) restoreImportMutation.mutate("REPLACE"); }}>完整替换</button>
+          </div>
+        </div> : null}
+        {restoreImportMutation.data ? <p className="success-message">恢复完成：{restoreImportMutation.data.promptCount} 条 Prompt，{restoreImportMutation.data.restoredAssets} 个素材。</p> : null}
+        {validateImportMutation.isError || restoreImportMutation.isError ? <p className="form-error">{(validateImportMutation.error ?? restoreImportMutation.error)?.message}</p> : null}
+      </div>
     </section>
   </main>;
 }

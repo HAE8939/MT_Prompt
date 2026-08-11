@@ -9,6 +9,10 @@
 - Added ordered compiler contribution snapshots and generator provenance display.
 - Added a generic OpenAI-compatible AI Provider, Credential Manager configuration, and optimize/variant/consistency/rewrite proposal APIs.
 - Configured the local Provider for `https://lanfengai.cn` and `deepseek-v4-flash`; the upstream chat endpoint currently times out while `/v1/models` remains reachable.
+- Added transactional MERGE/REPLACE restore with pre-restore backup gating and asset rollback journal.
+- Added advanced Prompt workflows: exact-ID bulk updates, normalized duplicate reports, recycle-bin restore, version Diff, and compilation replay.
+- Added video asset upload/preview support and template field defaults/conditional validation.
+- Added explicit AI proposal acceptance as a new Prompt version; Provider timeout remains intentionally deferred for user-configurable replacement.
 
 ## 2026-08-11
 

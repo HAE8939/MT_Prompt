@@ -2,12 +2,14 @@ export type LocalizedValue = { zh: string; en: string };
 
 export type CompileInput = {
   modelTaskKey: string;
-  template: { key: string; version: number; bodyZh: string; bodyEn: string };
+  template: { key: string; version: number; bodyZh: string; bodyEn: string; fields?: ReadonlyArray<TemplateField> };
   inputValues: Record<string, LocalizedValue>;
   skills: ReadonlyArray<{ key: string; version: number; section: string; priority: number; conflictGroup: string | null; contentZh: string; contentEn: string }>;
   personalRules: ReadonlyArray<{ key: string; version: number; section: string; priority: number; contentZh: string; contentEn: string }>;
   sectionOrder: readonly string[];
 };
+
+export type TemplateField = { name: string; required: boolean; defaultZh?: string; defaultEn?: string; when?: { field: string; equals: string } };
 
 export type CompileResult = {
   contentZh: string;
@@ -30,6 +32,20 @@ function fill(body: string, values: Record<string, LocalizedValue>, language: "z
   return body.replace(/{{\s*([\w-]+)\s*}}/g, (_, key: string) => values[key]?.[language] ?? "").trim();
 }
 
+function resolveFields(fields: ReadonlyArray<TemplateField> | undefined, values: Record<string, LocalizedValue>) {
+  const resolved = { ...values };
+  for (const field of fields ?? []) {
+    const condition = field.when;
+    if (condition && values[condition.field]?.zh !== condition.equals) continue;
+    const value = resolved[field.name];
+    if (!value?.zh?.trim()) {
+      if (field.defaultZh || field.defaultEn) resolved[field.name] = { zh: field.defaultZh ?? "", en: field.defaultEn ?? field.defaultZh ?? "" };
+      else if (field.required) throw new Error("TEMPLATE_FIELD_REQUIRED");
+    }
+  }
+  return resolved;
+}
+
 function uniqueContributions(contributions: Contribution[]) {
   const seen = new Set<string>();
   return contributions.filter((contribution) => {
@@ -50,8 +66,9 @@ export function compilePrompt(input: CompileInput): CompileResult {
     if (keys.length > 1) throw new CompilerConflictError(group, keys);
   }
 
-  const modificationZh = fill(input.template.bodyZh, input.inputValues, "zh");
-  const modificationEn = fill(input.template.bodyEn, input.inputValues, "en");
+  const values = resolveFields(input.template.fields, input.inputValues);
+  const modificationZh = fill(input.template.bodyZh, values, "zh");
+  const modificationEn = fill(input.template.bodyEn, values, "en");
   const contributions: Contribution[] = [
     ...input.personalRules.map((rule) => ({ sourceType: "PERSONAL_RULE" as const, sourceKey: rule.key, version: rule.version, section: rule.section, priority: rule.priority, contentZh: rule.contentZh, contentEn: rule.contentEn })),
     ...input.skills.map((skill) => ({ sourceType: "SKILL" as const, sourceKey: skill.key, version: skill.version, section: skill.section, priority: skill.priority, contentZh: skill.contentZh, contentEn: skill.contentEn })),

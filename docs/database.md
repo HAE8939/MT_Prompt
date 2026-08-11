@@ -15,14 +15,14 @@ Runtime directories and databases are ignored by Git. `npm run setup` creates re
 | --- | --- |
 | `Prompt` | User-facing bilingual Prompt record and current state |
 | `PromptVersion` | Immutable snapshots created on initial save and update |
-| `Asset` | Image metadata linked to a Prompt; bytes live in `storage/` |
+| `Asset` | Image/video metadata linked to a Prompt; bytes live in `storage/` |
 | `Model`, `ModelTask` | Provider/model catalog and supported task definitions |
 | `PromptTemplate` | Versioned bilingual template for one model task |
 | `PromptSkill` | Reusable bilingual compiler contribution with priority/conflict metadata |
 | `PersonalRule` | Optional user constraint applied globally or to one task |
 | `CompilationRun` | Inputs, output, translation state, and compiler provenance |
 
-`Prompt.compilationRunId` is unique, so one compilation can create at most one Prompt. Prompt deletion cascades to its versions and assets; the linked compilation is retained with its Prompt link cleared.
+`Prompt.compilationRunId` is unique, so one compilation can create at most one Prompt. Prompt deletion sets `deletedAt` for recycle-bin recovery; explicit purge remains the only destructive operation.
 
 ## Ownership and Editing
 
@@ -39,6 +39,6 @@ Knowledge records use `BUILT_IN` or `USER` ownership. Editing built-in templates
 
 ## Backup Boundary
 
-The export ZIP includes Prompts, versions, knowledge, taxonomy, asset bytes, checksums, and missing-asset reporting. Windows Credential Manager secrets are excluded. V1 provides export/download; automatic restore from an archive is not implemented yet.
+The export ZIP includes Prompts, versions, knowledge, taxonomy, asset bytes, checksums, and missing-asset reporting. Windows Credential Manager secrets are excluded. Import supports a dry-run preview plus MERGE and REPLACE modes. REPLACE always creates an automatic pre-restore export and fails closed if that export cannot be written.
 
-V1.1 adds strict archive validation and read-only integrity reporting. Applying validated archives in merge/replace modes remains under development; validation does not mutate SQLite or local assets.
+Before a schema migration, start the API and run `Invoke-RestMethod -Method Post http://127.0.0.1:3000/api/v1/exports`, then verify the downloaded ZIP. Apply Prisma changes with `npx prisma migrate deploy` in packaged environments; local development may use `npx prisma db push --skip-generate`.

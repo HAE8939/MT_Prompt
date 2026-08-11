@@ -42,6 +42,13 @@ export const promptListQuerySchema = z.object({
 
 export type PromptListQuery = z.infer<typeof promptListQuerySchema>;
 
+export const bulkPromptUpdateSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(500),
+  status: promptStatusSchema.optional(),
+  categoryId: z.string().uuid().nullable().optional(),
+});
+export type BulkPromptUpdateInput = z.infer<typeof bulkPromptUpdateSchema>;
+
 export const skillInputSchema = z.object({
   nameZh: z.string().trim().min(1).max(120),
   nameEn: z.string().trim().min(1).max(120),
@@ -129,3 +136,10 @@ export const aiAssistSchema = z.object({
   targetModel: z.string().trim().optional(),
 });
 export type AiAssistInput = z.infer<typeof aiAssistSchema>;
+
+export const aiProposalSaveSchema = z.object({
+  contentZh: z.string().trim().min(1),
+  contentEn: z.string().trim().nullable().optional(),
+  changeNote: z.string().trim().max(300).default("采纳 AI 建议"),
+});
+export type AiProposalSaveInput = z.infer<typeof aiProposalSaveSchema>;

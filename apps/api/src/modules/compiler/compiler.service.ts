@@ -1,4 +1,4 @@
-import { compilePrompt } from "@promptvault/compiler";
+import { compilePrompt, type TemplateField } from "@promptvault/compiler";
 import type { PrismaClient } from "@prisma/client";
 import type { CompileRequest, SaveCompilationInput } from "@promptvault/contracts";
 import type { TranslationProvider } from "./translation-provider.js";
@@ -38,7 +38,7 @@ export class CompilerService {
     const inputValues = Object.fromEntries(Object.entries(request.inputValues).map(([key, zh]) => [key, { zh, en: translatedValues?.[key] ?? "" }]));
     const compiled = compilePrompt({
       modelTaskKey: modelTask.stableKey,
-      template: { key: template.stableKey, version: template.version, bodyZh: template.templateZh, bodyEn: template.templateEn },
+      template: { key: template.stableKey, version: template.version, bodyZh: template.templateZh, bodyEn: template.templateEn, fields: toTemplateFields(template.fieldSchema) },
       inputValues,
       skills: selectedSkills.map((skill) => ({ key: skill.stableKey, version: skill.version, section: sectionByCategory[skill.category] ?? "detail", priority: skill.priority, conflictGroup: skill.conflictGroup, contentZh: skill.contentZh, contentEn: skill.contentEn })),
       personalRules: personalRules.map((rule) => ({ key: rule.stableKey, version: rule.version, section: "constraints", priority: rule.priority, contentZh: rule.contentZh, contentEn: rule.contentEn })),
@@ -73,6 +73,12 @@ export class CompilerService {
         data: { contentEn: null, translationStatus: "FAILED", translationProvider: translator.id, translationError: error instanceof Error ? error.message : "UNAVAILABLE" },
       });
     }
+  }
+
+  async replay(compilationRunId: string) {
+    const run = await this.prisma.compilationRun.findUnique({ where: { id: compilationRunId }, include: { skills: true } });
+    if (!run) throw new Error("COMPILATION_NOT_FOUND");
+    return { id: run.id, contentZh: run.contentZh, contentEn: run.contentEn, rulesSnapshot: run.rulesSnapshot, inputValues: run.inputValues, templateKey: run.templateKey, templateVersion: run.templateVersion, skills: run.skills };
   }
 
   async saveAsPrompt(compilationRunId: string, input: SaveCompilationInput) {
@@ -113,4 +119,14 @@ export class CompilerService {
       return prompt;
     });
   }
+}
+
+function toTemplateFields(value: unknown): TemplateField[] {
+  if (!value || typeof value !== "object" || !Array.isArray((value as { fields?: unknown }).fields)) return [];
+  return (value as { fields: unknown[] }).fields.filter((field): field is Record<string, unknown> => Boolean(field) && typeof field === "object").map((field) => ({
+    name: String(field.name), required: Boolean(field.required),
+    ...(typeof field.defaultZh === "string" ? { defaultZh: field.defaultZh } : {}),
+    ...(typeof field.defaultEn === "string" ? { defaultEn: field.defaultEn } : {}),
+    ...(field.when && typeof field.when === "object" && typeof (field.when as Record<string, unknown>).field === "string" && typeof (field.when as Record<string, unknown>).equals === "string" ? { when: { field: String((field.when as Record<string, unknown>).field), equals: String((field.when as Record<string, unknown>).equals) } } : {}),
+  }));
 }

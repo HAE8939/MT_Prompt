@@ -34,4 +34,8 @@ export async function registerCompilerRoutes(app: FastifyInstance, service: Comp
       throw error;
     }
   });
+  app.get("/api/v1/compilations/:id/replay", async (request, reply) => {
+    try { return await service.replay((request.params as { id: string }).id); }
+    catch (error) { if (error instanceof Error && error.message === "COMPILATION_NOT_FOUND") return reply.code(404).send({ error: { code: error.message, message: "编译记录不存在。" } }); throw error; }
+  });
 }

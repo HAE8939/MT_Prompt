@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import type { CreatePromptInput, PromptListQuery, UpdatePromptInput } from "@promptvault/contracts";
+import type { AiProposalSaveInput, BulkPromptUpdateInput, CreatePromptInput, PromptListQuery, UpdatePromptInput } from "@promptvault/contracts";
 
 const promptInclude = {
   modelTask: { include: { model: true } },
@@ -60,6 +60,7 @@ export class PromptService {
   async list(query: PromptListQuery) {
     const keyword = query.keyword || undefined;
     const where: Prisma.PromptWhereInput = {
+      deletedAt: null,
       ...(query.modelTaskId ? { modelTaskId: query.modelTaskId } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.tag ? { tags: { some: { tag: { normalizedName: query.tag.toLowerCase() } } } } : {}),
@@ -94,7 +95,7 @@ export class PromptService {
   }
 
   async get(id: string) {
-    const prompt = await this.prisma.prompt.findUnique({ where: { id }, include: promptInclude });
+    const prompt = await this.prisma.prompt.findFirst({ where: { id, deletedAt: null }, include: promptInclude });
     if (!prompt) throw new Error("PROMPT_NOT_FOUND");
     return toPromptDto(prompt);
   }
@@ -126,7 +127,7 @@ export class PromptService {
   }
 
   async update(id: string, input: UpdatePromptInput) {
-    const existing = await this.prisma.prompt.findUnique({ where: { id } });
+    const existing = await this.prisma.prompt.findFirst({ where: { id, deletedAt: null } });
     if (!existing) throw new Error("PROMPT_NOT_FOUND");
     const { tagIds, changeNote, ...fields } = input;
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -152,17 +153,57 @@ export class PromptService {
     return toPromptDto(updated);
   }
 
+  async saveAiProposal(id: string, input: AiProposalSaveInput) {
+    return this.update(id, { contentZh: input.contentZh, contentEn: input.contentEn ?? undefined, changeNote: input.changeNote });
+  }
+
   async remove(id: string) {
-    await this.prisma.prompt.delete({ where: { id } });
+    const result = await this.prisma.prompt.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date() } });
+    if (!result.count) throw new Error("PROMPT_NOT_FOUND");
+  }
+
+  async restore(id: string) {
+    const result = await this.prisma.prompt.updateMany({ where: { id, deletedAt: { not: null } }, data: { deletedAt: null } });
+    if (!result.count) throw new Error("PROMPT_NOT_FOUND");
+    return this.get(id);
+  }
+
+  async bulkUpdate(input: BulkPromptUpdateInput) {
+    const data = Object.fromEntries(Object.entries({ status: input.status, categoryId: input.categoryId }).filter(([, value]) => value !== undefined));
+    if (!Object.keys(data).length) return { updated: 0 };
+    const result = await this.prisma.$transaction(async (tx) => tx.prompt.updateMany({ where: { id: { in: input.ids }, deletedAt: null }, data }));
+    return { updated: result.count };
+  }
+
+  async duplicates() {
+    const prompts = await this.prisma.prompt.findMany({ where: { deletedAt: null }, select: { id: true, contentZh: true, contentEn: true, title: true } });
+    const groups = new Map<string, { ids: string[]; titles: string[] }>();
+    for (const prompt of prompts) {
+      const key = `${normalize(prompt.contentZh)}\u0000${normalize(prompt.contentEn ?? "")}`;
+      const group = groups.get(key) ?? { ids: [], titles: [] };
+      group.ids.push(prompt.id); group.titles.push(prompt.title); groups.set(key, group);
+    }
+    return [...groups.values()].filter((group) => group.ids.length > 1);
   }
 
   async versions(id: string) {
-    const prompt = await this.prisma.prompt.findUnique({ where: { id }, select: { id: true } });
+    const prompt = await this.prisma.prompt.findFirst({ where: { id, deletedAt: null }, select: { id: true } });
     if (!prompt) throw new Error("PROMPT_NOT_FOUND");
     return this.prisma.promptVersion.findMany({ where: { promptId: id }, orderBy: { version: "desc" } });
   }
 
+  async versionDiff(promptId: string, fromId: string, toId: string) {
+    const versions = await this.prisma.promptVersion.findMany({ where: { promptId, id: { in: [fromId, toId] } } });
+    if (versions.length !== 2) throw new Error("PROMPT_VERSION_NOT_FOUND");
+    const from = versions.find((version) => version.id === fromId)!;
+    const to = versions.find((version) => version.id === toId)!;
+    const fields = new Set([...Object.keys(from.snapshot as object), ...Object.keys(to.snapshot as object)]);
+    return [...fields].sort().map((field) => ({ field, before: (from.snapshot as Record<string, unknown>)[field] ?? null, after: (to.snapshot as Record<string, unknown>)[field] ?? null, changed: JSON.stringify((from.snapshot as Record<string, unknown>)[field] ?? null) !== JSON.stringify((to.snapshot as Record<string, unknown>)[field] ?? null) }));
+  }
+
   async restoreVersion(promptId: string, versionId: string) {
+    const activePrompt = await this.prisma.prompt.findFirst({ where: { id: promptId, deletedAt: null }, select: { id: true } });
+    if (!activePrompt) throw new Error("PROMPT_NOT_FOUND");
     const version = await this.prisma.promptVersion.findFirst({ where: { id: versionId, promptId } });
     if (!version) throw new Error("PROMPT_VERSION_NOT_FOUND");
     const snapshot = version.snapshot as Record<string, unknown>;
@@ -174,4 +215,10 @@ export class PromptService {
       return toPromptDto(restored);
     });
   }
+
+  async recycleBin() {
+    return this.prisma.prompt.findMany({ where: { deletedAt: { not: null } }, include: promptInclude, orderBy: { deletedAt: "desc" } });
+  }
 }
+
+function normalize(value: string) { return value.trim().toLocaleLowerCase().replace(/\s+/g, " "); }

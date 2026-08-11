@@ -29,4 +29,28 @@ describe("SettingsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "生成数据备份" }));
     expect(await screen.findByRole("link", { name: "下载备份" })).toHaveAttribute("href", "/api/v1/exports/promptvault-test.zip");
   });
+
+  it("validates and merges a selected backup with an import summary", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/settings/status")) return response({ translation: { provider: null, configured: false, model: null } });
+      if (url.includes("/settings/ai-provider/status")) return response({ configured: false, baseUrl: null, model: null });
+      if (url.includes("/imports/validate")) return response({ valid: true, schemaVersion: 1, promptCount: 2, assetCount: 1, missingAssets: [], conflicts: ["prompt-1"] });
+      if (url.includes("/imports?mode=MERGE") && init?.method === "POST") return response({ mode: "MERGE", promptCount: 2, restoredAssets: 1, conflicts: ["prompt-1"], missingAssets: [] });
+      throw new Error(`unexpected ${url}`);
+    }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><SettingsPage /></QueryClientProvider>);
+    const file = new File(["backup"], "promptvault.zip", { type: "application/zip" });
+
+    await userEvent.upload(await screen.findByLabelText("选择备份 ZIP"), file);
+    await userEvent.click(screen.getByRole("button", { name: "校验备份" }));
+    expect(await screen.findByText(/发现 1 条 ID 冲突/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "合并恢复" }));
+    expect(await screen.findByText("恢复完成：2 条 Prompt，1 个素材。" )).toBeVisible();
+  });
 });
+
+function response(value: unknown) {
+  return { ok: true, status: 200, json: async () => value };
+}
