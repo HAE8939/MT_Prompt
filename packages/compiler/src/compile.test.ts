@@ -25,6 +25,7 @@ describe("compilePrompt", () => {
     expect(result.contentZh).toBe("保持材质纹理。\n\n使用提供的图片作为唯一参考。\n\n仅修改灯光，不改变空间结构。\n\n采用电影感摄影语言。");
     expect(result.contentEn).toBe("Preserve material texture.\n\nUse the provided image as the sole reference.\n\nModify lighting only; do not change the spatial structure.\n\nUse cinematic photography language.");
     expect(result.metadata).toMatchObject({ modelTaskKey: fixture.modelTaskKey, skillKeys: ["reference", "cinematic"] });
+    expect(result.contributions.map((item) => `${item.sourceType}:${item.sourceKey}`)).toEqual(["PERSONAL_RULE:preserve", "SKILL:reference", "TEMPLATE:scene-default", "SKILL:cinematic"]);
   });
 
   it("rejects two enabled skills from one conflict group", () => {

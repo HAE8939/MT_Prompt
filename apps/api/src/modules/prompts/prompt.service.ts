@@ -64,6 +64,10 @@ export class PromptService {
       ...(query.status ? { status: query.status } : {}),
       ...(query.tag ? { tags: { some: { tag: { normalizedName: query.tag.toLowerCase() } } } } : {}),
       ...(query.mediaType ? { modelTask: { model: { mediaType: query.mediaType } } } : {}),
+      ...(query.origin ? { origin: query.origin } : {}),
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.hasEnglish !== undefined ? { contentEn: query.hasEnglish ? { not: null } : null } : {}),
+      ...(query.hasAsset !== undefined ? { assets: query.hasAsset ? { some: {} } : { none: {} } } : {}),
       ...(keyword ? {
         OR: [
           { title: { contains: keyword } },
@@ -80,7 +84,7 @@ export class PromptService {
       this.prisma.prompt.findMany({
         where,
         include: promptInclude,
-        orderBy: { updatedAt: "desc" },
+        orderBy: { [query.sort]: query.order },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
       }),
@@ -156,5 +160,18 @@ export class PromptService {
     const prompt = await this.prisma.prompt.findUnique({ where: { id }, select: { id: true } });
     if (!prompt) throw new Error("PROMPT_NOT_FOUND");
     return this.prisma.promptVersion.findMany({ where: { promptId: id }, orderBy: { version: "desc" } });
+  }
+
+  async restoreVersion(promptId: string, versionId: string) {
+    const version = await this.prisma.promptVersion.findFirst({ where: { id: versionId, promptId } });
+    if (!version) throw new Error("PROMPT_VERSION_NOT_FOUND");
+    const snapshot = version.snapshot as Record<string, unknown>;
+    const fields = Object.fromEntries(["title", "description", "contentZh", "contentEn", "negativeZh", "negativeEn"].filter((key) => typeof snapshot[key] === "string" || snapshot[key] === null).map((key) => [key, snapshot[key]]));
+    return this.prisma.$transaction(async (tx) => {
+      const restored = await tx.prompt.update({ where: { id: promptId }, data: fields, include: promptInclude });
+      const latest = await tx.promptVersion.findFirst({ where: { promptId }, orderBy: { version: "desc" } });
+      await tx.promptVersion.create({ data: { promptId, version: (latest?.version ?? 0) + 1, snapshot: { title: restored.title, description: restored.description, contentZh: restored.contentZh, contentEn: restored.contentEn, negativeZh: restored.negativeZh, negativeEn: restored.negativeEn }, changeNote: `恢复自 v${version.version}` } });
+      return toPromptDto(restored);
+    });
   }
 }

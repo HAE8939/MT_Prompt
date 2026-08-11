@@ -14,6 +14,10 @@ export async function registerPromptRoutes(app: FastifyInstance, service: Prompt
     try { return await service.versions(request.params.id); }
     catch (error) { if (error instanceof Error && error.message === "PROMPT_NOT_FOUND") return reply.code(404).send({ error: { code: "PROMPT_NOT_FOUND", message: "Prompt 不存在。" } }); throw error; }
   });
+  app.post<{ Params: { id: string; versionId: string } }>("/api/v1/prompts/:id/versions/:versionId/restore", async (request, reply) => {
+    try { return await service.restoreVersion(request.params.id, request.params.versionId); }
+    catch (error) { if (error instanceof Error && error.message === "PROMPT_VERSION_NOT_FOUND") return reply.code(404).send({ error: { code: error.message, message: "Prompt 版本不存在。" } }); throw error; }
+  });
 
   app.post("/api/v1/prompts", async (request, reply) => {
     const prompt = await service.create(createPromptSchema.parse(request.body));

@@ -18,6 +18,10 @@ import { SettingsService } from "./modules/settings/settings.service.js";
 import { registerSettingsRoutes } from "./modules/settings/settings.routes.js";
 import { ExportService } from "./modules/export/export.service.js";
 import { registerExportRoutes } from "./modules/export/export.routes.js";
+import { registerAiRoutes } from "./modules/ai/ai.routes.js";
+import { AiService } from "./modules/ai/ai.service.js";
+import { IntegrityService } from "./modules/export/integrity.service.js";
+import { ImportService } from "./modules/export/import.service.js";
 
 export type AppOptions = { prisma?: PrismaClient; translator?: TranslationProvider; credentialStore?: CredentialStore };
 
@@ -37,8 +41,9 @@ export async function buildApp(options: AppOptions = {}) {
   await registerKnowledgeRoutes(app, new KnowledgeService(prisma));
   const settings = new SettingsService(options.credentialStore ?? new WindowsCredentialStore());
   await registerSettingsRoutes(app, settings);
-  await registerExportRoutes(app, new ExportService(prisma, storageRoot, join(import.meta.dirname, "..", "..", "..", "exports")));
+  await registerExportRoutes(app, new ExportService(prisma, storageRoot, join(import.meta.dirname, "..", "..", "..", "exports")), new IntegrityService(prisma, storageRoot), new ImportService());
   await registerCompilerRoutes(app, new CompilerService(prisma, options.translator ?? (() => settings.getProvider())));
+  await registerAiRoutes(app, new AiService(() => settings.getAiProvider()));
 
   if (ownsPrisma) {
     app.addHook("onClose", async () => prisma.$disconnect());

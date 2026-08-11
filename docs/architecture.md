@@ -42,6 +42,8 @@ The API service layer owns transactions and filesystem coordination. React compo
 - `/api/v1/compiler/compile`, `/compilations/:id/*`: compile, translate retry, and save.
 - `/api/v1/settings/*`: translation configuration and connection test.
 - `/api/v1/exports`: create and download a backup archive.
+- `/api/v1/imports/validate`, `/api/v1/integrity`: validate backup archives and scan local asset consistency.
+- `/api/v1/ai/*`: explicit user-triggered Prompt assistance through a generic OpenAI-compatible Provider.
 
 ## Security and Scope
 

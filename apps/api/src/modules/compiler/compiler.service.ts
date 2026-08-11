@@ -48,7 +48,7 @@ export class CompilerService {
     return this.prisma.compilationRun.create({
       data: {
         modelTaskId: modelTask.id, templateId: template.id, modelTaskKey: modelTask.stableKey, templateKey: template.stableKey, templateVersion: template.version,
-        inputValues: request.inputValues, rulesSnapshot: { personalRules: personalRules.map((rule) => ({ key: rule.stableKey, version: rule.version })) },
+        inputValues: request.inputValues, rulesSnapshot: { personalRules: personalRules.map((rule) => ({ key: rule.stableKey, version: rule.version })), contributions: compiled.contributions },
         contentZh: compiled.contentZh, contentEn: translatedValues ? compiled.contentEn : null,
         translationStatus: translatedValues ? "SUCCEEDED" : "FAILED", translationProvider: translator.id, translationError,
         compilerVersion: "1", skills: { create: selectedSkills.map((skill) => ({ skillId: skill.id, stableKey: skill.stableKey, version: skill.version, contentZh: skill.contentZh, contentEn: skill.contentEn })) },

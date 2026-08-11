@@ -1,8 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { createReadStream } from "node:fs";
 import type { ExportService } from "./export.service.js";
+import type { IntegrityService } from "./integrity.service.js";
+import type { ImportService } from "./import.service.js";
 
-export async function registerExportRoutes(app: FastifyInstance, service: ExportService) {
+export async function registerExportRoutes(app: FastifyInstance, service: ExportService, integrity?: IntegrityService, importer?: ImportService) {
   app.post("/api/v1/exports", async (_request, reply) => {
     const archive = await service.createExport();
     return reply.code(201).send({ filename: archive.filename, downloadUrl: `/api/v1/exports/${archive.filename}` });
@@ -16,5 +18,12 @@ export async function registerExportRoutes(app: FastifyInstance, service: Export
     } catch {
       return reply.code(404).send({ error: { code: "EXPORT_NOT_FOUND", message: "导出文件不存在。" } });
     }
+  });
+  if (integrity) app.get("/api/v1/integrity", async () => integrity.scan());
+  if (importer) app.post("/api/v1/imports/validate", async (request, reply) => {
+    const file = await request.file();
+    if (!file) return reply.code(400).send({ error: { code: "FILE_REQUIRED", message: "请选择 PromptVault ZIP 备份。" } });
+    try { return importer.validate(await file.toBuffer()); }
+    catch (error) { return reply.code(400).send({ error: { code: error instanceof Error ? error.message : "IMPORT_INVALID", message: "备份文件校验失败。" } }); }
   });
 }

@@ -42,3 +42,7 @@ When saved to the library, the Prompt links back to this run. The detail panel s
 ## Editing Generated Prompts
 
 After generation, the saved Prompt behaves like a normal library record. Editing updates the current fields and creates a new `PromptVersion`; it does not rewrite the original `CompilationRun` provenance.
+
+## AI Assistance
+
+AI optimization is isolated from deterministic compilation. A generic OpenAI-compatible Provider sends requests only after an explicit user action and returns an unsaved proposal for optimization, variants, consistency checking, or model rewriting. The Provider base URL and model are configuration; the API key is stored only in Windows Credential Manager. Provider output never silently overwrites a Prompt.

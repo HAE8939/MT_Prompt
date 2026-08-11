@@ -40,3 +40,5 @@ Knowledge records use `BUILT_IN` or `USER` ownership. Editing built-in templates
 ## Backup Boundary
 
 The export ZIP includes Prompts, versions, knowledge, taxonomy, asset bytes, checksums, and missing-asset reporting. Windows Credential Manager secrets are excluded. V1 provides export/download; automatic restore from an archive is not implemented yet.
+
+V1.1 adds strict archive validation and read-only integrity reporting. Applying validated archives in merge/replace modes remains under development; validation does not mutate SQLite or local assets.

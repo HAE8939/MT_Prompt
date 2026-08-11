@@ -14,6 +14,7 @@ export type CompileResult = {
   contentEn: string;
   warnings: string[];
   metadata: { modelTaskKey: string; templateKey: string; templateVersion: number; skillKeys: string[]; personalRuleKeys: string[] };
+  contributions: Array<{ sourceType: "TEMPLATE" | "SKILL" | "PERSONAL_RULE"; sourceKey: string; version: number; section: string; contentZh: string; contentEn: string }>;
 };
 
 export class CompilerConflictError extends Error {
@@ -23,7 +24,7 @@ export class CompilerConflictError extends Error {
   }
 }
 
-type Contribution = { section: string; priority: number; contentZh: string; contentEn: string };
+type Contribution = { sourceType: "TEMPLATE" | "SKILL" | "PERSONAL_RULE"; sourceKey: string; version: number; section: string; priority: number; contentZh: string; contentEn: string };
 
 function fill(body: string, values: Record<string, LocalizedValue>, language: "zh" | "en") {
   return body.replace(/{{\s*([\w-]+)\s*}}/g, (_, key: string) => values[key]?.[language] ?? "").trim();
@@ -52,9 +53,9 @@ export function compilePrompt(input: CompileInput): CompileResult {
   const modificationZh = fill(input.template.bodyZh, input.inputValues, "zh");
   const modificationEn = fill(input.template.bodyEn, input.inputValues, "en");
   const contributions: Contribution[] = [
-    ...input.personalRules.map((rule) => ({ section: rule.section, priority: rule.priority, contentZh: rule.contentZh, contentEn: rule.contentEn })),
-    ...input.skills.map((skill) => ({ section: skill.section, priority: skill.priority, contentZh: skill.contentZh, contentEn: skill.contentEn })),
-    { section: "modification", priority: 0, contentZh: modificationZh, contentEn: modificationEn },
+    ...input.personalRules.map((rule) => ({ sourceType: "PERSONAL_RULE" as const, sourceKey: rule.key, version: rule.version, section: rule.section, priority: rule.priority, contentZh: rule.contentZh, contentEn: rule.contentEn })),
+    ...input.skills.map((skill) => ({ sourceType: "SKILL" as const, sourceKey: skill.key, version: skill.version, section: skill.section, priority: skill.priority, contentZh: skill.contentZh, contentEn: skill.contentEn })),
+    { sourceType: "TEMPLATE" as const, sourceKey: input.template.key, version: input.template.version, section: "modification", priority: 0, contentZh: modificationZh, contentEn: modificationEn },
   ];
   const order = new Map(input.sectionOrder.map((section, index) => [section, index]));
   const sorted = uniqueContributions(contributions).sort((a, b) => (order.get(a.section) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.section) ?? Number.MAX_SAFE_INTEGER) || b.priority - a.priority);
@@ -63,6 +64,7 @@ export function compilePrompt(input: CompileInput): CompileResult {
     contentZh: sorted.map((item) => item.contentZh).join("\n\n"),
     contentEn: sorted.map((item) => item.contentEn).join("\n\n"),
     warnings: [],
+    contributions: sorted.map(({ sourceType, sourceKey, version, section, contentZh, contentEn }) => ({ sourceType, sourceKey, version, section, contentZh, contentEn })),
     metadata: {
       modelTaskKey: input.modelTaskKey,
       templateKey: input.template.key,

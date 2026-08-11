@@ -32,6 +32,12 @@ export const promptListQuerySchema = z.object({
   status: promptStatusSchema.optional(),
   tag: z.string().trim().optional(),
   mediaType: z.enum(["IMAGE", "VIDEO"]).optional(),
+  origin: promptOriginSchema.optional(),
+  categoryId: z.string().uuid().optional(),
+  hasEnglish: z.coerce.boolean().optional(),
+  hasAsset: z.coerce.boolean().optional(),
+  sort: z.enum(["updatedAt", "createdAt", "title", "rating"]).default("updatedAt"),
+  order: z.enum(["asc", "desc"]).default("desc"),
 });
 
 export type PromptListQuery = z.infer<typeof promptListQuerySchema>;
@@ -108,3 +114,18 @@ export const translationSettingsSchema = z.object({
 });
 
 export type TranslationSettingsInput = z.infer<typeof translationSettingsSchema>;
+
+export const aiProviderSettingsSchema = z.object({
+  baseUrl: z.string().url(),
+  apiKey: z.string().trim().min(1),
+  model: z.string().trim().min(1).default("deepseek-v4-flash"),
+});
+export type AiProviderSettingsInput = z.infer<typeof aiProviderSettingsSchema>;
+
+export const aiAssistSchema = z.object({
+  operation: z.enum(["OPTIMIZE", "VARIANTS", "CONSISTENCY", "REWRITE"]),
+  contentZh: z.string().trim().min(1),
+  contentEn: z.string().trim().optional(),
+  targetModel: z.string().trim().optional(),
+});
+export type AiAssistInput = z.infer<typeof aiAssistSchema>;

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, Clipboard, Grid2X2, Image, List, MoreHorizontal, Plus, Search, SlidersHorizontal, Star, Trash2, Upload, X } from "lucide-react";
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { api, type PromptListResponse, type PromptRecord } from "../../lib/api-client";
 import { PromptEditor } from "./PromptEditor";
 import "./library-fixes.css";
@@ -47,6 +47,7 @@ function DetailPanel({ prompt, onClose, onEdit, onChanged }: { prompt: PromptRec
     mutationFn: (asset: Asset) => api<void>(`/assets/${asset.id}`, { method: "DELETE" }).then(() => asset),
     onSuccess: (asset) => onChanged({ ...prompt, assets: prompt.assets.filter((item) => item.id !== asset.id) }),
   });
+  const restoreMutation = useMutation({ mutationFn: (version: Version) => api<PromptRecord>(`/prompts/${prompt.id}/versions/${version.id}/restore`, { method: "POST" }), onSuccess: (restored) => onChanged(restored) });
   async function copy(language: "zh" | "en") {
     const value = language === "zh" ? prompt.contentZh : prompt.contentEn;
     if (!value) return;
@@ -65,7 +66,7 @@ function DetailPanel({ prompt, onClose, onEdit, onChanged }: { prompt: PromptRec
       <section className="prompt-block"><div className="block-heading"><span>中文 Prompt</span><button onClick={() => copy("zh")}>{copied === "zh" ? <Check size={14} /> : <Clipboard size={14} />}复制</button></div><pre>{prompt.contentZh}</pre></section>
       <section className="prompt-block"><div className="block-heading"><span>English Prompt</span><button onClick={() => copy("en")} disabled={!prompt.contentEn}>{copied === "en" ? <Check size={14} /> : <Clipboard size={14} />}复制</button></div><pre>{prompt.contentEn || "尚未生成英文版本"}</pre></section>
       <section className="detail-section"><h3>图片素材</h3>{prompt.assets.length ? <div className="asset-gallery">{prompt.assets.map((asset) => <article key={asset.id}><img src={`/api/v1/assets/${asset.id}/content`} alt="" /><div><span>{asset.originalName ?? asset.role}</span><small>{roleLabel[asset.role]}</small></div><button className="icon-button" aria-label={`删除 ${asset.originalName ?? asset.role}`} disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(asset)}><Trash2 size={13} /></button></article>)}</div> : <p className="section-empty">尚未添加图片素材。</p>}<div className="asset-upload"><label>选择图片<input aria-label="选择图片" type="file" accept="image/png,image/jpeg,image/webp,image/avif" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label><label>图片用途<select aria-label="图片用途" value={role} onChange={(event) => setRole(event.target.value as Asset["role"])}><option value="COVER">封面</option><option value="REFERENCE">参考图</option><option value="RESULT">结果图</option><option value="COMPARISON">对比图</option></select></label><button className="secondary-button" disabled={!file || uploadMutation.isPending} onClick={() => uploadMutation.mutate()}><Upload size={14} />{uploadMutation.isPending ? "上传中..." : "上传素材"}</button></div>{uploadMutation.isError || deleteMutation.isError ? <p className="form-error">{(uploadMutation.error ?? deleteMutation.error)?.message}</p> : null}</section>
-      <section className="detail-section"><h3>版本历史</h3>{Array.isArray(versionsQuery.data) && versionsQuery.data.length ? <ol className="version-list">{versionsQuery.data.map((version) => <li key={version.id}><strong>v{version.version}</strong><span>{version.changeNote || "更新 Prompt"}</span><time>{new Date(version.createdAt).toLocaleString("zh-CN")}</time></li>)}</ol> : <p className="section-empty">暂无版本记录。</p>}</section>
+      <section className="detail-section"><h3>版本历史</h3>{Array.isArray(versionsQuery.data) && versionsQuery.data.length ? <ol className="version-list">{versionsQuery.data.map((version) => <li key={version.id}><strong>v{version.version}</strong><span>{version.changeNote || "更新 Prompt"}</span><time>{new Date(version.createdAt).toLocaleString("zh-CN")}</time><button disabled={restoreMutation.isPending} onClick={() => { if (window.confirm(`恢复到 v${version.version}？当前内容会保存为新的版本记录。`)) restoreMutation.mutate(version); }}>恢复</button></li>)}</ol> : <p className="section-empty">暂无版本记录。</p>}</section>
     </div>
   </aside>;
 }
@@ -77,14 +78,17 @@ export function LibraryPage() {
   const [selected, setSelected] = useState<PromptRecord | null>(null);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [filter, setFilter] = useState<"ALL" | "IMAGE" | "VIDEO" | "FAVORITE">("ALL");
+  const [sort, setSort] = useState("updatedAt:desc");
+  const [page, setPage] = useState(1);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<PromptRecord | null>(null);
   const queryClient = useQueryClient();
   const deferredSearch = useDeferredValue(search);
   const query = useQuery({
-    queryKey: ["prompts", deferredSearch, filter],
-    queryFn: () => api<PromptListResponse>(`/prompts?keyword=${encodeURIComponent(deferredSearch)}&page=1&limit=40${filter === "IMAGE" || filter === "VIDEO" ? `&mediaType=${filter}` : filter === "FAVORITE" ? "&status=FAVORITE" : ""}`),
+    queryKey: ["prompts", deferredSearch, filter, sort, page],
+    queryFn: () => { const [sortField, order] = sort.split(":"); return api<PromptListResponse>(`/prompts?keyword=${encodeURIComponent(deferredSearch)}&page=${page}&limit=24&sort=${sortField}&order=${order}${filter === "IMAGE" || filter === "VIDEO" ? `&mediaType=${filter}` : filter === "FAVORITE" ? "&status=FAVORITE" : ""}`); },
   });
+  useEffect(() => setPage(1), [deferredSearch, filter, sort]);
   const visiblePrompts = query.data?.data.filter((prompt) => filter === "ALL" || (filter === "IMAGE" ? prompt.model.mediaType === "IMAGE" : filter === "VIDEO" ? prompt.model.mediaType === "VIDEO" : prompt.status === "FAVORITE")) ?? [];
   function chooseFilter(value: typeof filter) { setFilter(value); setSelected(null); }
 
@@ -94,12 +98,13 @@ export function LibraryPage() {
       <div className="search-wrap"><Search size={17} /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索 Prompt、标签、模型..." aria-label="搜索 Prompt" /><kbd>Ctrl K</kbd></div>
       <div className="filter-bar">
         <div className="segments"><button className={filter === "ALL" ? "active" : ""} onClick={() => chooseFilter("ALL")}>全部</button><button className={filter === "IMAGE" ? "active" : ""} onClick={() => chooseFilter("IMAGE")}>图片</button><button className={filter === "VIDEO" ? "active" : ""} onClick={() => chooseFilter("VIDEO")}>视频</button><button className={filter === "FAVORITE" ? "active" : ""} onClick={() => chooseFilter("FAVORITE")}>收藏</button></div>
-        <div className="filter-actions"><button><SlidersHorizontal size={15} />筛选</button><button>最近更新<ChevronDown size={14} /></button><div className="view-toggle"><button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} aria-label="网格视图"><Grid2X2 size={15} /></button><button className={view === "list" ? "active" : ""} onClick={() => setView("list")} aria-label="列表视图"><List size={16} /></button></div></div>
+        <div className="filter-actions"><button><SlidersHorizontal size={15} />筛选</button><label className="sort-control"><span className="sr-only">排序</span><select aria-label="Prompt 排序" value={sort} onChange={(event) => setSort(event.target.value)}><option value="updatedAt:desc">最近更新</option><option value="createdAt:desc">最近创建</option><option value="rating:desc">评分最高</option><option value="title:asc">标题 A-Z</option></select><ChevronDown size={14} /></label><div className="view-toggle"><button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} aria-label="网格视图"><Grid2X2 size={15} /></button><button className={view === "list" ? "active" : ""} onClick={() => setView("list")} aria-label="列表视图"><List size={16} /></button></div></div>
       </div>
       {query.isLoading ? <div className="loading-grid">{Array.from({ length: 8 }, (_, index) => <div key={index} className="skeleton" />)}</div> : null}
       {query.isError ? <div className="state-panel"><h2>无法读取 Prompt 库</h2><p>{query.error.message}</p><button onClick={() => query.refetch()}>重新加载</button></div> : null}
       {visiblePrompts.length === 0 ? <div className="state-panel empty"><Image size={32} /><h2>{search || filter !== "ALL" ? "没有匹配结果" : "Prompt 库还是空的"}</h2><p>{search || filter !== "ALL" ? "尝试切换分类或清除搜索。" : "新建第一个 Prompt，或从生成器保存结果。"}</p></div> : null}
       {visiblePrompts.length ? <div className={view === "grid" ? "prompt-grid" : "prompt-list"}>{visiblePrompts.map((prompt) => <PromptCard key={prompt.id} prompt={prompt} selected={selected?.id === prompt.id} onOpen={() => setSelected(prompt)} />)}</div> : null}
+      {(query.data?.total ?? 0) > 24 ? <nav className="pagination" aria-label="Prompt 分页"><button disabled={page === 1} onClick={() => setPage((value) => value - 1)}>上一页</button><span>第 {page} / {Math.ceil((query.data?.total ?? 0) / 24)} 页</span><button disabled={page >= Math.ceil((query.data?.total ?? 0) / 24)} onClick={() => setPage((value) => value + 1)}>下一页</button></nav> : null}
     </main>
     {selected ? <DetailPanel prompt={selected} onClose={() => setSelected(null)} onEdit={() => setEditing(selected)} onChanged={(prompt) => { setSelected(prompt); void queryClient.invalidateQueries({ queryKey: ["prompts"] }); }} /> : null}
     {creating ? <PromptEditor onClose={() => setCreating(false)} onSaved={(prompt) => { setCreating(false); setSelected(prompt); void queryClient.invalidateQueries({ queryKey: ["prompts"] }); }} /> : null}

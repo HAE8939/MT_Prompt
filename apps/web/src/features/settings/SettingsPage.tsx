@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, DatabaseBackup, Download, KeyRound, PlugZap, Save } from "lucide-react";
+import { Bot, CheckCircle2, DatabaseBackup, Download, KeyRound, PlugZap, RefreshCw, Save, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api-client";
 import "./settings.css";
@@ -7,6 +7,9 @@ import "./settings.css";
 type Provider = "openai" | "microsoft";
 type SettingsStatus = { translation: { provider: Provider | null; configured: boolean; model: string | null; endpoint?: string | null; region?: string | null } };
 type ExportResult = { filename: string; downloadUrl: string };
+type AiStatus = { configured: boolean; baseUrl: string | null; model: string | null };
+type IntegrityReport = { checkedAt: string; assetCount: number; missingFiles: string[]; orphanFiles: string[] };
+type ImportValidation = { valid: true; schemaVersion: number; promptCount: number; assetCount: number; missingAssets: string[] };
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -15,6 +18,10 @@ export function SettingsPage() {
   const [model, setModel] = useState("gpt-5-mini");
   const [endpoint, setEndpoint] = useState("https://api.cognitive.microsofttranslator.com");
   const [region, setRegion] = useState("");
+  const [aiBaseUrl, setAiBaseUrl] = useState("https://lanfengai.cn");
+  const [aiModel, setAiModel] = useState("deepseek-v4-flash");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [backupFile, setBackupFile] = useState<File | null>(null);
   const statusQuery = useQuery({ queryKey: ["settings-status"], queryFn: () => api<SettingsStatus>("/settings/status") });
   const saveMutation = useMutation({
     mutationFn: () => api<void>("/settings/translation-provider", {
@@ -28,6 +35,11 @@ export function SettingsPage() {
   });
   const testMutation = useMutation({ mutationFn: () => api<void>("/settings/translation-provider/test", { method: "POST" }) });
   const exportMutation = useMutation({ mutationFn: () => api<ExportResult>("/exports", { method: "POST" }) });
+  const aiStatusQuery = useQuery({ queryKey: ["ai-provider-status"], queryFn: () => api<AiStatus>("/settings/ai-provider/status") });
+  const saveAiMutation = useMutation({ mutationFn: () => api<void>("/settings/ai-provider", { method: "PUT", body: JSON.stringify({ baseUrl: aiBaseUrl, model: aiModel, apiKey: aiApiKey }) }), onSuccess: async () => { setAiApiKey(""); await queryClient.invalidateQueries({ queryKey: ["ai-provider-status"] }); } });
+  const testAiMutation = useMutation({ mutationFn: () => api<void>("/settings/ai-provider/test", { method: "POST" }) });
+  const integrityQuery = useQuery({ queryKey: ["integrity"], queryFn: () => api<IntegrityReport>("/integrity"), enabled: false });
+  const validateImportMutation = useMutation({ mutationFn: () => { if (!backupFile) throw new Error("请选择 ZIP 备份。"); const body = new FormData(); body.append("file", backupFile); return api<ImportValidation>("/imports/validate", { method: "POST", body }); } });
 
   return <main className="settings-page">
     <header className="page-header"><div><h1>设置</h1><span className="count">本机凭据、翻译服务与数据管理</span></div></header>
@@ -42,9 +54,22 @@ export function SettingsPage() {
         {saveMutation.isError || testMutation.isError ? <p className="form-error">{(saveMutation.error ?? testMutation.error)?.message}</p> : null}
       </div>
     </section>
+    <section className="settings-section" aria-labelledby="ai-heading">
+      <header><div className="section-icon"><Bot size={17} /></div><div><h2 id="ai-heading">通用 AI Provider</h2><p>用于 Prompt 优化、变体、检查和模型重写。</p></div>{aiStatusQuery.data?.configured ? <span className="configured-status"><CheckCircle2 size={14} />凭据已配置</span> : <span className="muted-status">未配置</span>}</header>
+      <div className="settings-form">
+        <label>Base URL<input aria-label="AI Base URL" value={aiBaseUrl} onChange={(event) => setAiBaseUrl(event.target.value)} /></label>
+        <label>模型<input aria-label="AI 模型" value={aiModel} onChange={(event) => setAiModel(event.target.value)} /></label>
+        <label>Provider 密钥<input aria-label="AI Provider 密钥" type="password" autoComplete="off" value={aiApiKey} onChange={(event) => setAiApiKey(event.target.value)} placeholder={aiStatusQuery.data?.configured ? "输入新密钥以替换现有凭据" : "输入 Provider 密钥"} /></label>
+        <div className="settings-actions"><button className="primary-button" disabled={!aiApiKey.trim() || saveAiMutation.isPending} onClick={() => saveAiMutation.mutate()}><Save size={15} />保存 Provider</button><button className="secondary-button" disabled={!aiStatusQuery.data?.configured || testAiMutation.isPending} onClick={() => testAiMutation.mutate()}><PlugZap size={15} />{testAiMutation.isPending ? "测试中..." : "测试 AI 连接"}</button></div>
+        {testAiMutation.isSuccess ? <p className="success-message">AI Provider 连接成功</p> : null}
+        {saveAiMutation.isError || testAiMutation.isError ? <p className="form-error">{(saveAiMutation.error ?? testAiMutation.error)?.message}</p> : null}
+      </div>
+    </section>
     <section className="settings-section" aria-labelledby="export-heading">
       <header><div className="section-icon"><DatabaseBackup size={17} /></div><div><h2 id="export-heading">数据备份</h2><p>导出 Prompt、知识库记录和本地资产。</p></div></header>
       <div className="export-panel"><button className="primary-button" disabled={exportMutation.isPending} onClick={() => exportMutation.mutate()}><DatabaseBackup size={15} />{exportMutation.isPending ? "正在生成..." : "生成数据备份"}</button>{exportMutation.data ? <a className="secondary-button download-link" href={exportMutation.data.downloadUrl} download={exportMutation.data.filename}><Download size={15} />下载备份</a> : null}{exportMutation.isError ? <p className="form-error">{exportMutation.error.message}</p> : null}</div>
+      <div className="export-panel"><button className="secondary-button" disabled={integrityQuery.isFetching} onClick={() => void integrityQuery.refetch()}><RefreshCw size={15} />检查数据完整性</button>{integrityQuery.data ? <p className={integrityQuery.data.missingFiles.length || integrityQuery.data.orphanFiles.length ? "form-error" : "success-message"}><ShieldCheck size={14} />已检查 {integrityQuery.data.assetCount} 个素材，缺失 {integrityQuery.data.missingFiles.length}，孤立 {integrityQuery.data.orphanFiles.length}</p> : null}</div>
+      <div className="settings-form"><label>校验备份文件<input aria-label="选择备份 ZIP" type="file" accept=".zip,application/zip" onChange={(event) => setBackupFile(event.target.files?.[0] ?? null)} /></label><button className="secondary-button" disabled={!backupFile || validateImportMutation.isPending} onClick={() => validateImportMutation.mutate()}>校验备份</button>{validateImportMutation.data ? <p className="success-message">备份有效：{validateImportMutation.data.promptCount} 条 Prompt，{validateImportMutation.data.assetCount} 个素材</p> : null}{validateImportMutation.isError ? <p className="form-error">{validateImportMutation.error.message}</p> : null}</div>
     </section>
   </main>;
 }

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-11 - V1.1-V1.4 development checkpoint
+
+- Added ZIP backup validation with schema, required-entry, path, size, and SHA-256 checks.
+- Added read-only asset integrity scanning for missing and orphan files.
+- Added server pagination and Prompt sorting/filter query support.
+- Added immutable Prompt version restore that creates a new history entry.
+- Added ordered compiler contribution snapshots and generator provenance display.
+- Added a generic OpenAI-compatible AI Provider, Credential Manager configuration, and optimize/variant/consistency/rewrite proposal APIs.
+- Configured the local Provider for `https://lanfengai.cn` and `deepseek-v4-flash`; the upstream chat endpoint currently times out while `/v1/models` remains reachable.
+
 ## 2026-08-11
 
 - Added Prompt create/edit, category filtering, docked details, cover rendering, and version history.
