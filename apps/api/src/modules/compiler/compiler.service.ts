@@ -13,7 +13,11 @@ function toStringArray(value: unknown, fallback: string[]) {
 }
 
 export class CompilerService {
-  constructor(private readonly prisma: PrismaClient, private readonly translator: TranslationProvider) {}
+  constructor(private readonly prisma: PrismaClient, private readonly translator: TranslationProvider | (() => Promise<TranslationProvider>)) {}
+
+  private getTranslator() {
+    return typeof this.translator === "function" ? this.translator() : Promise.resolve(this.translator);
+  }
 
   async compile(request: CompileRequest) {
     const [modelTask, template, selectedSkills, personalRules] = await Promise.all([
@@ -25,9 +29,10 @@ export class CompilerService {
 
     if (selectedSkills.length !== request.skillIds.length) throw new Error("INCOMPATIBLE_SKILL");
 
+    const translator = await this.getTranslator();
     let translatedValues: Record<string, string> | null = null;
     let translationError: string | null = null;
-    try { translatedValues = await this.translator.translate(request.inputValues); }
+    try { translatedValues = await translator.translate(request.inputValues); }
     catch (error) { translationError = error instanceof Error ? error.message : "TRANSLATION_FAILED"; }
 
     const inputValues = Object.fromEntries(Object.entries(request.inputValues).map(([key, zh]) => [key, { zh, en: translatedValues?.[key] ?? "" }]));
@@ -45,11 +50,29 @@ export class CompilerService {
         modelTaskId: modelTask.id, templateId: template.id, modelTaskKey: modelTask.stableKey, templateKey: template.stableKey, templateVersion: template.version,
         inputValues: request.inputValues, rulesSnapshot: { personalRules: personalRules.map((rule) => ({ key: rule.stableKey, version: rule.version })) },
         contentZh: compiled.contentZh, contentEn: translatedValues ? compiled.contentEn : null,
-        translationStatus: translatedValues ? "SUCCEEDED" : "FAILED", translationProvider: this.translator.id, translationError,
+        translationStatus: translatedValues ? "SUCCEEDED" : "FAILED", translationProvider: translator.id, translationError,
         compilerVersion: "1", skills: { create: selectedSkills.map((skill) => ({ skillId: skill.id, stableKey: skill.stableKey, version: skill.version, contentZh: skill.contentZh, contentEn: skill.contentEn })) },
       },
       include: { skills: true },
     });
+  }
+
+  async retryTranslation(compilationRunId: string) {
+    const run = await this.prisma.compilationRun.findUnique({ where: { id: compilationRunId } });
+    if (!run) throw new Error("COMPILATION_NOT_FOUND");
+    const translator = await this.getTranslator();
+    try {
+      const translated = await translator.translate({ content: run.contentZh });
+      return await this.prisma.compilationRun.update({
+        where: { id: run.id },
+        data: { contentEn: translated.content, translationStatus: "SUCCEEDED", translationProvider: translator.id, translationError: null },
+      });
+    } catch (error) {
+      return await this.prisma.compilationRun.update({
+        where: { id: run.id },
+        data: { contentEn: null, translationStatus: "FAILED", translationProvider: translator.id, translationError: error instanceof Error ? error.message : "UNAVAILABLE" },
+      });
+    }
   }
 
   async saveAsPrompt(compilationRunId: string, input: SaveCompilationInput) {

@@ -79,3 +79,15 @@ export const saveCompilationSchema = z.object({
 });
 
 export type SaveCompilationInput = z.infer<typeof saveCompilationSchema>;
+
+export const translationProviderSchema = z.enum(["openai", "microsoft"]);
+
+export const translationSettingsSchema = z.object({
+  provider: translationProviderSchema,
+  apiKey: z.string().trim().min(1),
+  model: z.string().trim().min(1).default("gpt-5-mini"),
+  endpoint: z.string().url().optional(),
+  region: z.string().trim().optional(),
+});
+
+export type TranslationSettingsInput = z.infer<typeof translationSettingsSchema>;

@@ -22,4 +22,16 @@ export async function registerCompilerRoutes(app: FastifyInstance, service: Comp
       throw error;
     }
   });
+
+  app.post("/api/v1/compilations/:id/retry-translation", async (request, reply) => {
+    try {
+      const params = request.params as { id: string };
+      return await service.retryTranslation(params.id);
+    } catch (error) {
+      if (error instanceof Error && error.message === "COMPILATION_NOT_FOUND") {
+        return reply.code(404).send({ error: { code: error.message, message: "编译记录不存在。" } });
+      }
+      throw error;
+    }
+  });
 }

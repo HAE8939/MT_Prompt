@@ -3,7 +3,16 @@ export interface TranslationProvider {
   translate(values: Record<string, string>): Promise<Record<string, string>>;
 }
 
-export class TranslationUnavailableError extends Error {
+export type TranslationErrorCode = "NOT_CONFIGURED" | "INVALID_CREDENTIALS" | "RATE_LIMITED" | "TIMEOUT" | "UNAVAILABLE";
+
+export class TranslationError extends Error {
+  constructor(public readonly code: TranslationErrorCode) {
+    super(code);
+    this.name = "TranslationError";
+  }
+}
+
+export class TranslationUnavailableError extends TranslationError {
   constructor() { super("NOT_CONFIGURED"); this.name = "TranslationUnavailableError"; }
 }
 

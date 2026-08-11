@@ -28,4 +28,24 @@ describe("GeneratorPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "保存到 Prompt 库" }));
     expect(await screen.findByText("已保存到 Prompt 库")).toBeVisible();
   });
+
+  it("retries a failed English translation", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/models")) return { ok: true, status: 200, json: async () => [{ id: "m1", name: "GPT-IMAGE 2", tasks: [{ id: "t1", nameZh: "场景保持修改", templates: [{ id: "tpl1", nameZh: "场景保持模板" }] }] }] };
+      if (url.includes("/skills")) return { ok: true, status: 200, json: async () => ({ data: [] }) };
+      if (url.includes("/compilations/run2/retry-translation")) return { ok: true, status: 200, json: async () => ({ id: "run2", contentZh: "保持家具不变。", contentEn: "Keep the furniture unchanged.", translationStatus: "SUCCEEDED" }) };
+      if (init?.method === "POST") return { ok: true, status: 201, json: async () => ({ id: "run2", contentZh: "保持家具不变。", contentEn: null, translationStatus: "FAILED" }) };
+      throw new Error(`unexpected ${url}`);
+    }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><GeneratorPage /></QueryClientProvider>);
+
+    await screen.findByLabelText("模型");
+    await userEvent.type(screen.getByLabelText("任务要求"), "保持家具不变");
+    await userEvent.click(screen.getByRole("button", { name: "生成 Prompt" }));
+    await userEvent.click(await screen.findByRole("button", { name: "重试翻译" }));
+
+    expect(await screen.findByText("Keep the furniture unchanged.")).toBeVisible();
+  });
 });

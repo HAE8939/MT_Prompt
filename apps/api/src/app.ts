@@ -10,10 +10,14 @@ import { KnowledgeService } from "./modules/knowledge/knowledge.service.js";
 import { registerKnowledgeRoutes } from "./modules/knowledge/knowledge.routes.js";
 import { CompilerService } from "./modules/compiler/compiler.service.js";
 import { registerCompilerRoutes } from "./modules/compiler/compiler.routes.js";
-import { UnavailableTranslationProvider, type TranslationProvider } from "./modules/compiler/translation-provider.js";
+import type { TranslationProvider } from "./modules/compiler/translation-provider.js";
 import { join } from "node:path";
+import type { CredentialStore } from "./modules/settings/credential-store.js";
+import { WindowsCredentialStore } from "./modules/settings/windows-credential-store.js";
+import { SettingsService } from "./modules/settings/settings.service.js";
+import { registerSettingsRoutes } from "./modules/settings/settings.routes.js";
 
-export type AppOptions = { prisma?: PrismaClient; translator?: TranslationProvider };
+export type AppOptions = { prisma?: PrismaClient; translator?: TranslationProvider; credentialStore?: CredentialStore };
 
 export async function buildApp(options: AppOptions = {}) {
   const app = Fastify({ logger: false });
@@ -29,7 +33,9 @@ export async function buildApp(options: AppOptions = {}) {
   const storageRoot = join(import.meta.dirname, "..", "..", "..", "storage");
   await registerAssetRoutes(app, prisma, new LocalStorageAdapter(storageRoot));
   await registerKnowledgeRoutes(app, new KnowledgeService(prisma));
-  await registerCompilerRoutes(app, new CompilerService(prisma, options.translator ?? new UnavailableTranslationProvider()));
+  const settings = new SettingsService(options.credentialStore ?? new WindowsCredentialStore());
+  await registerSettingsRoutes(app, settings);
+  await registerCompilerRoutes(app, new CompilerService(prisma, options.translator ?? (() => settings.getProvider())));
 
   if (ownsPrisma) {
     app.addHook("onClose", async () => prisma.$disconnect());
