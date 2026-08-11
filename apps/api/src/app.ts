@@ -26,7 +26,8 @@ export async function buildApp(options: AppOptions = {}) {
 
   app.get("/api/v1/health", async () => ({ status: "ok" as const }));
   await registerPromptRoutes(app, new PromptService(prisma));
-  await registerAssetRoutes(app, prisma, new LocalStorageAdapter(join(process.cwd(), "storage")));
+  const storageRoot = join(import.meta.dirname, "..", "..", "..", "storage");
+  await registerAssetRoutes(app, prisma, new LocalStorageAdapter(storageRoot));
   await registerKnowledgeRoutes(app, new KnowledgeService(prisma));
   await registerCompilerRoutes(app, new CompilerService(prisma, options.translator ?? new UnavailableTranslationProvider()));
 
