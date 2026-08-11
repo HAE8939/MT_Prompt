@@ -12,6 +12,7 @@
     "dev:web": "npm --workspace @promptvault/web run dev",
     "setup": "tsx prisma/ensure-runtime-paths-cli.ts && prisma generate && prisma db push --skip-generate && npm run seed",
     "seed": "tsx prisma/seed.ts",
+    "import:ciyuan01": "tsx prisma/import-ciyuan01.ts",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },

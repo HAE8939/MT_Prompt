@@ -25,4 +25,11 @@ export async function registerAssetRoutes(app: FastifyInstance, prisma: PrismaCl
       throw error;
     }
   });
+
+  app.get<{ Params: { id: string } }>("/api/v1/assets/:id/content", async (request, reply) => {
+    const asset = await prisma.asset.findUnique({ where: { id: request.params.id }, select: { storageKey: true, mimeType: true } });
+    if (!asset) return reply.code(404).send({ error: { code: "ASSET_NOT_FOUND", message: "素材不存在。" } });
+    reply.type(asset.mimeType);
+    return reply.send(await storage.createReadStream(asset.storageKey));
+  });
 }
