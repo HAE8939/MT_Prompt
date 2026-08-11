@@ -13,7 +13,7 @@ export async function parseCiyuanMarkdown(markdownPath: string): Promise<CiyuanE
     const images = [...block.matchAll(/!\[[^\]]*\]\([^)]+\/(\d+(?:_before)?\.webp)\)/g)].map((match) => match[1]!);
     const firstImage = block.indexOf("![");
     const firstPrompt = block.indexOf("\n", firstImage);
-    const text = block.slice(firstPrompt + 1).split(/\n---\s*$/m)[0].trim();
+    const text = block.slice(firstPrompt + 1).replace(/!\[[^\]]*\]\([^)]+\)\s*/g, "").split(/\n---\s*$/m)[0].trim();
     if (!heading || !images[0]) throw new Error(`Invalid ciyuan entry: ${block.slice(0, 80)}`);
     return { index: Number(heading[1]), title: heading[2].trim(), coverFile: images.find((file) => !file.includes("_before")) ?? images[0], beforeFile: images.find((file) => file.includes("_before")), promptText: text };
   });
@@ -31,7 +31,7 @@ async function importEntries() {
     for (const entry of entries) {
       const modelTask = /上传|保留原始|改造前|参考/.test(entry.promptText) ? editTask : generateTask;
       const existing = await prisma.prompt.findFirst({ where: { title: entry.title, modelTaskId: modelTask.id } });
-      const prompt = existing ?? await prisma.prompt.create({ data: { title: entry.title, description: `词源零壹精选提示词 #${String(entry.index).padStart(2, "0")}`, contentZh: entry.promptText, contentEn: null, modelTaskId: modelTask.id, origin: "GENERATED", status: "VERIFIED", rating: 0 } });
+      const prompt = existing ? await prisma.prompt.update({ where: { id: existing.id }, data: { contentZh: entry.promptText } }) : await prisma.prompt.create({ data: { title: entry.title, description: `词源零壹精选提示词 #${String(entry.index).padStart(2, "0")}`, contentZh: entry.promptText, contentEn: null, modelTaskId: modelTask.id, origin: "GENERATED", status: "VERIFIED", rating: 0 } });
       if (!existing) await prisma.promptVersion.create({ data: { promptId: prompt.id, version: 1, snapshot: { contentZh: entry.promptText, contentEn: null }, changeNote: "导入词源零壹精选提示词" } });
       const assetCount = await prisma.asset.count({ where: { promptId: prompt.id } });
       if (assetCount === 0) {
