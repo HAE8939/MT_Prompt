@@ -64,6 +64,23 @@ export const templateInputSchema = z.object({
 
 export type SkillInput = z.infer<typeof skillInputSchema>;
 export type TemplateInput = z.infer<typeof templateInputSchema>;
+export const skillUpdateSchema = skillInputSchema.partial();
+export const templateUpdateSchema = templateInputSchema.partial();
+export type SkillUpdateInput = z.infer<typeof skillUpdateSchema>;
+export type TemplateUpdateInput = z.infer<typeof templateUpdateSchema>;
+
+export const personalRuleInputSchema = z.object({
+  modelTaskId: z.string().uuid().nullable().optional(),
+  nameZh: z.string().trim().min(1).max(120),
+  nameEn: z.string().trim().min(1).max(120),
+  contentZh: z.string().trim().min(1),
+  contentEn: z.string().trim().min(1),
+  priority: z.number().int().min(0).max(2000).default(1000),
+  enabled: z.boolean().default(true),
+});
+export const personalRuleUpdateSchema = personalRuleInputSchema.partial();
+export type PersonalRuleInput = z.infer<typeof personalRuleInputSchema>;
+export type PersonalRuleUpdateInput = z.infer<typeof personalRuleUpdateSchema>;
 
 export const compileRequestSchema = z.object({
   modelTaskId: z.string().uuid(),
