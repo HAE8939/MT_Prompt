@@ -21,7 +21,7 @@ export async function parseCiyuanMarkdown(markdownPath: string): Promise<CiyuanE
 
 async function importEntries() {
   const root = resolve(process.cwd());
-  const sourceDir = join(root, "ciyuan01");
+  const sourceDir = join(root, "data", "imports", "ciyuan01");
   const entries = await parseCiyuanMarkdown(join(sourceDir, "ciyuan01_gpt-image2_prompts.md"));
   const prisma = new PrismaClient();
   const storage = new LocalStorageAdapter(join(root, "storage"));
