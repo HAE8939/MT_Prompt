@@ -31,6 +31,7 @@ export const promptListQuerySchema = z.object({
   modelTaskId: z.string().uuid().optional(),
   status: promptStatusSchema.optional(),
   tag: z.string().trim().optional(),
+  mediaType: z.enum(["IMAGE", "VIDEO"]).optional(),
 });
 
 export type PromptListQuery = z.infer<typeof promptListQuerySchema>;

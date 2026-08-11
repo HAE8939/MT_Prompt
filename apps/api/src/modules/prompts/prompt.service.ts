@@ -51,6 +51,7 @@ export class PromptService {
       ...(query.modelTaskId ? { modelTaskId: query.modelTaskId } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.tag ? { tags: { some: { tag: { normalizedName: query.tag.toLowerCase() } } } } : {}),
+      ...(query.mediaType ? { modelTask: { model: { mediaType: query.mediaType } } } : {}),
       ...(keyword ? {
         OR: [
           { title: { contains: keyword } },
