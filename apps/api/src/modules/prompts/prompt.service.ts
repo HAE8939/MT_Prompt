@@ -6,6 +6,7 @@ const promptInclude = {
   category: true,
   tags: { include: { tag: true } },
   assets: true,
+  compilationRun: { include: { skills: true } },
 } satisfies Prisma.PromptInclude;
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -37,6 +38,17 @@ function toPromptDto(prompt: Prisma.PromptGetPayload<{ include: typeof promptInc
     category: prompt.category,
     tags: prompt.tags.map(({ tag }) => ({ id: tag.id, name: tag.name, type: tag.type })),
     assets: prompt.assets,
+    provenance: prompt.compilationRun ? {
+      compilationRunId: prompt.compilationRun.id,
+      templateKey: prompt.compilationRun.templateKey,
+      templateVersion: prompt.compilationRun.templateVersion,
+      compilerVersion: prompt.compilationRun.compilerVersion,
+      translationProvider: prompt.compilationRun.translationProvider,
+      translationStatus: prompt.compilationRun.translationStatus,
+      translationError: prompt.compilationRun.translationError,
+      skills: prompt.compilationRun.skills.map((skill) => ({ stableKey: skill.stableKey, version: skill.version })),
+      createdAt: prompt.compilationRun.createdAt,
+    } : null,
     createdAt: prompt.createdAt,
     updatedAt: prompt.updatedAt,
   };

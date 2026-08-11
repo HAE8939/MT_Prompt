@@ -1,9 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, Clipboard, Grid2X2, Image, List, MoreHorizontal, Plus, Search, SlidersHorizontal, Star, X } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, ChevronDown, Clipboard, Grid2X2, Image, List, MoreHorizontal, Plus, Search, SlidersHorizontal, Star, Trash2, Upload, X } from "lucide-react";
 import { useDeferredValue, useState } from "react";
 import { api, type PromptListResponse, type PromptRecord } from "../../lib/api-client";
 import { PromptEditor } from "./PromptEditor";
-import { useQueryClient } from "@tanstack/react-query";
 import "./library-fixes.css";
 
 function Rating({ value }: { value: number }) {
@@ -26,8 +25,28 @@ function PromptCard({ prompt, selected, onOpen }: { prompt: PromptRecord; select
   </button>;
 }
 
-function DetailPanel({ prompt, onClose, onEdit }: { prompt: PromptRecord; onClose(): void; onEdit(): void }) {
+type Asset = PromptRecord["assets"][number];
+type Version = { id: string; version: number; changeNote: string | null; createdAt: string };
+
+function DetailPanel({ prompt, onClose, onEdit, onChanged }: { prompt: PromptRecord; onClose(): void; onEdit(): void; onChanged(prompt: PromptRecord): void }) {
   const [copied, setCopied] = useState<"zh" | "en" | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [role, setRole] = useState<Asset["role"]>("REFERENCE");
+  const versionsQuery = useQuery({ queryKey: ["prompt-versions", prompt.id], queryFn: () => api<Version[]>(`/prompts/${prompt.id}/versions`) });
+  const uploadMutation = useMutation({
+    mutationFn: async () => {
+      if (!file) throw new Error("请选择图片文件。");
+      const body = new FormData();
+      body.append("role", role);
+      body.append("file", file);
+      return api<Asset>(`/prompts/${prompt.id}/assets`, { method: "POST", body });
+    },
+    onSuccess: (asset) => { onChanged({ ...prompt, assets: [...prompt.assets, asset] }); setFile(null); },
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (asset: Asset) => api<void>(`/assets/${asset.id}`, { method: "DELETE" }).then(() => asset),
+    onSuccess: (asset) => onChanged({ ...prompt, assets: prompt.assets.filter((item) => item.id !== asset.id) }),
+  });
   async function copy(language: "zh" | "en") {
     const value = language === "zh" ? prompt.contentZh : prompt.contentEn;
     if (!value) return;
@@ -41,12 +60,17 @@ function DetailPanel({ prompt, onClose, onEdit }: { prompt: PromptRecord; onClos
       <div className="detail-visual">{(() => { const cover = prompt.assets.find((asset) => asset.role === "COVER") ?? prompt.assets[0]; return cover ? <img className="detail-image" src={`/api/v1/assets/${cover.id}/content`} alt={`${prompt.title}封面`} /> : <div className="cover-placeholder large"><Image size={32} /><span>{prompt.model.mediaType}</span></div>; })()}</div>
       <div className="detail-title"><div><h2>{prompt.title}</h2><p>{prompt.description || "暂无说明"}</p></div><Rating value={prompt.rating} /></div>
       <dl className="metadata"><div><dt>模型</dt><dd>{prompt.model.name}</dd></div><div><dt>任务</dt><dd>{prompt.task.nameZh}</dd></div></dl>
+      {prompt.provenance ? <section className="detail-section"><h3>生成来源</h3><dl className="provenance-grid"><div><dt>模板</dt><dd>{prompt.provenance.templateKey} · v{prompt.provenance.templateVersion}</dd></div><div><dt>编译器</dt><dd>v{prompt.provenance.compilerVersion}</dd></div><div><dt>翻译服务</dt><dd>{prompt.provenance.translationProvider ?? "未配置"}</dd></div><div><dt>Skill</dt><dd>{prompt.provenance.skills.length ? prompt.provenance.skills.map((skill) => `${skill.stableKey} v${skill.version}`).join("、") : "无"}</dd></div></dl></section> : null}
       <div className="tag-row detail-tags">{prompt.tags.map((tag) => <span key={tag.id}>{tag.name}</span>)}</div>
       <section className="prompt-block"><div className="block-heading"><span>中文 Prompt</span><button onClick={() => copy("zh")}>{copied === "zh" ? <Check size={14} /> : <Clipboard size={14} />}复制</button></div><pre>{prompt.contentZh}</pre></section>
       <section className="prompt-block"><div className="block-heading"><span>English Prompt</span><button onClick={() => copy("en")} disabled={!prompt.contentEn}>{copied === "en" ? <Check size={14} /> : <Clipboard size={14} />}复制</button></div><pre>{prompt.contentEn || "尚未生成英文版本"}</pre></section>
+      <section className="detail-section"><h3>图片素材</h3>{prompt.assets.length ? <div className="asset-gallery">{prompt.assets.map((asset) => <article key={asset.id}><img src={`/api/v1/assets/${asset.id}/content`} alt="" /><div><span>{asset.originalName ?? asset.role}</span><small>{roleLabel[asset.role]}</small></div><button className="icon-button" aria-label={`删除 ${asset.originalName ?? asset.role}`} disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(asset)}><Trash2 size={13} /></button></article>)}</div> : <p className="section-empty">尚未添加图片素材。</p>}<div className="asset-upload"><label>选择图片<input aria-label="选择图片" type="file" accept="image/png,image/jpeg,image/webp,image/avif" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label><label>图片用途<select aria-label="图片用途" value={role} onChange={(event) => setRole(event.target.value as Asset["role"])}><option value="COVER">封面</option><option value="REFERENCE">参考图</option><option value="RESULT">结果图</option><option value="COMPARISON">对比图</option></select></label><button className="secondary-button" disabled={!file || uploadMutation.isPending} onClick={() => uploadMutation.mutate()}><Upload size={14} />{uploadMutation.isPending ? "上传中..." : "上传素材"}</button></div>{uploadMutation.isError || deleteMutation.isError ? <p className="form-error">{(uploadMutation.error ?? deleteMutation.error)?.message}</p> : null}</section>
+      <section className="detail-section"><h3>版本历史</h3>{Array.isArray(versionsQuery.data) && versionsQuery.data.length ? <ol className="version-list">{versionsQuery.data.map((version) => <li key={version.id}><strong>v{version.version}</strong><span>{version.changeNote || "更新 Prompt"}</span><time>{new Date(version.createdAt).toLocaleString("zh-CN")}</time></li>)}</ol> : <p className="section-empty">暂无版本记录。</p>}</section>
     </div>
   </aside>;
 }
+
+const roleLabel: Record<Asset["role"], string> = { COVER: "封面", REFERENCE: "参考图", RESULT: "结果图", COMPARISON: "对比图" };
 
 export function LibraryPage() {
   const [search, setSearch] = useState("");
@@ -77,7 +101,7 @@ export function LibraryPage() {
       {visiblePrompts.length === 0 ? <div className="state-panel empty"><Image size={32} /><h2>{search || filter !== "ALL" ? "没有匹配结果" : "Prompt 库还是空的"}</h2><p>{search || filter !== "ALL" ? "尝试切换分类或清除搜索。" : "新建第一个 Prompt，或从生成器保存结果。"}</p></div> : null}
       {visiblePrompts.length ? <div className={view === "grid" ? "prompt-grid" : "prompt-list"}>{visiblePrompts.map((prompt) => <PromptCard key={prompt.id} prompt={prompt} selected={selected?.id === prompt.id} onOpen={() => setSelected(prompt)} />)}</div> : null}
     </main>
-    {selected ? <DetailPanel prompt={selected} onClose={() => setSelected(null)} onEdit={() => setEditing(selected)} /> : null}
+    {selected ? <DetailPanel prompt={selected} onClose={() => setSelected(null)} onEdit={() => setEditing(selected)} onChanged={(prompt) => { setSelected(prompt); void queryClient.invalidateQueries({ queryKey: ["prompts"] }); }} /> : null}
     {creating ? <PromptEditor onClose={() => setCreating(false)} onSaved={(prompt) => { setCreating(false); setSelected(prompt); void queryClient.invalidateQueries({ queryKey: ["prompts"] }); }} /> : null}
     {editing ? <PromptEditor prompt={editing} onClose={() => setEditing(null)} onSaved={(prompt) => { setEditing(null); setSelected(prompt); void queryClient.invalidateQueries({ queryKey: ["prompts"] }); }} /> : null}
   </div>;

@@ -74,4 +74,29 @@ describe("LibraryPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "保存修改" }));
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/prompts/p1", expect.objectContaining({ method: "PATCH" }));
   });
+
+  it("shows provenance and versions, then uploads and deletes an asset", async () => {
+    const generatedPrompt = { ...prompt, origin: "GENERATED", provenance: { compilationRunId: "run1", templateKey: "scene-template", templateVersion: 2, compilerVersion: "1", translationProvider: "openai", translationStatus: "SUCCEEDED", translationError: null, skills: [{ stableKey: "reference-lock", version: 1 }], createdAt: new Date().toISOString() } };
+    const uploadedAsset = { id: "a-result", role: "RESULT", storageKey: "result.webp", mimeType: "image/webp", originalName: "result.webp", byteSize: 12 };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/prompts/p1/versions")) return { ok: true, status: 200, json: async () => [{ id: "v2", version: 2, changeNote: "补充约束", createdAt: new Date().toISOString() }] };
+      if (url.includes("/prompts/p1/assets") && init?.method === "POST") return { ok: true, status: 201, json: async () => uploadedAsset };
+      if (url.includes("/assets/a-result") && init?.method === "DELETE") return { ok: true, status: 204, json: async () => null };
+      return { ok: true, status: 200, json: async () => ({ data: [generatedPrompt], total: 1, page: 1, limit: 40 }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<QueryClientProvider client={client}><MemoryRouter><LibraryPage /></MemoryRouter></QueryClientProvider>);
+
+    await userEvent.click(await screen.findByRole("button", { name: /打开现代东方豪宅客厅/ }));
+    expect(screen.getByText("生成来源")).toBeVisible();
+    expect(await screen.findByText("补充约束")).toBeVisible();
+    await userEvent.upload(screen.getByLabelText("选择图片"), new File(["image"], "result.webp", { type: "image/webp" }));
+    await userEvent.selectOptions(screen.getByLabelText("图片用途"), "RESULT");
+    await userEvent.click(screen.getByRole("button", { name: "上传素材" }));
+    expect(await screen.findByText("result.webp")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "删除 result.webp" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/assets/a-result", expect.objectContaining({ method: "DELETE" }));
+  });
 });

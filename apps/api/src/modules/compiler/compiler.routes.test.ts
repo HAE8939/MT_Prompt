@@ -37,6 +37,11 @@ describe("Compiler routes", () => {
     try {
       expect(response.statusCode).toBe(201);
       expect(response.json()).toMatchObject({ title: "路由保存测试", compilationRunId });
+      const detail = await app.inject({ method: "GET", url: `/api/v1/prompts/${response.json().id}` });
+      expect(detail.json()).toMatchObject({
+        origin: "GENERATED",
+        provenance: { templateKey: template.stableKey, templateVersion: template.version, translationProvider: "openai", compilerVersion: "1" },
+      });
     } finally {
       const promptId = response.json().id as string | undefined;
       if (promptId) await prisma.prompt.delete({ where: { id: promptId } });

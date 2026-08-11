@@ -32,4 +32,12 @@ export async function registerAssetRoutes(app: FastifyInstance, prisma: PrismaCl
     reply.type(asset.mimeType);
     return reply.send(await storage.createReadStream(asset.storageKey));
   });
+
+  app.delete<{ Params: { id: string } }>("/api/v1/assets/:id", async (request, reply) => {
+    const asset = await prisma.asset.findUnique({ where: { id: request.params.id }, select: { id: true, storageKey: true } });
+    if (!asset) return reply.code(404).send({ error: { code: "ASSET_NOT_FOUND", message: "素材不存在。" } });
+    await prisma.asset.delete({ where: { id: asset.id } });
+    await storage.remove(asset.storageKey);
+    return reply.code(204).send();
+  });
 }
