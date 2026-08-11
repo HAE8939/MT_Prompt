@@ -17,6 +17,7 @@ The web app runs at `http://127.0.0.1:5173` and the API at `http://127.0.0.1:300
 - `npm run setup`: prepare runtime directories, generate Prisma Client, sync the SQLite schema, and seed built-in knowledge.
 - `npm run dev`: start the API and web app.
 - `npm test`: run workspace tests.
+- `npm run test:e2e`: run the four Chrome acceptance workflows.
 - `npm run typecheck`: type-check all workspaces.
 - `npm run import:ciyuan01`: idempotently import the bundled Ciyuan prompt collection.
 
@@ -32,3 +33,10 @@ The web app runs at `http://127.0.0.1:5173` and the API at `http://127.0.0.1:300
 - `docs/superpowers`: approved specification and implementation plan.
 - `data/imports`: source datasets used by explicit import commands.
 - `database`, `storage`, `backups`, `exports`: ignored local runtime data.
+
+## Documentation
+
+- `docs/architecture.md`: runtime boundaries and request flow.
+- `docs/database.md`: Prisma data model and local data safety.
+- `docs/prompt-engine.md`: bilingual compilation and translation behavior.
+- `docs/changelog.md`: implemented feature history.

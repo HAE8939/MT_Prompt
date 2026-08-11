@@ -14,7 +14,8 @@ export type PromptRecord = {
 export type PromptListResponse = { data: PromptRecord[]; total: number; page: number; limit: number };
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api/v1${path}`, { ...init, headers: { ...(init?.body instanceof FormData ? {} : { "Content-Type": "application/json" }), ...init?.headers } });
+  const hasJsonBody = init?.body !== undefined && !(init.body instanceof FormData);
+  const response = await fetch(`/api/v1${path}`, { ...init, headers: { ...(hasJsonBody ? { "Content-Type": "application/json" } : {}), ...init?.headers } });
   if (!response.ok) {
     const body = await response.json().catch(() => null) as { error?: { message?: string } } | null;
     throw new Error(body?.error?.message ?? `请求失败 (${response.status})`);

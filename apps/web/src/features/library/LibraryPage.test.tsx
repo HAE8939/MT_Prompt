@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -98,5 +98,6 @@ describe("LibraryPage", () => {
     expect(await screen.findByText("result.webp")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "删除 result.webp" }));
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/assets/a-result", expect.objectContaining({ method: "DELETE" }));
+    await waitFor(() => expect(screen.queryByText("result.webp")).not.toBeInTheDocument());
   });
 });
