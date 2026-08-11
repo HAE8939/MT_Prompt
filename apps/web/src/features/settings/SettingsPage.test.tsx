@@ -14,6 +14,7 @@ describe("SettingsPage", () => {
       if (url.includes("/settings/status")) return { ok: true, status: 200, json: async () => ({ translation: { provider: configured ? "openai" : null, configured, model: configured ? "gpt-5-mini" : null } }) };
       if (url.includes("/settings/translation-provider/test")) return { ok: true, status: 204, json: async () => null };
       if (url.includes("/settings/translation-provider") && init?.method === "PUT") { configured = true; return { ok: true, status: 204, json: async () => null }; }
+      if (url.includes("/exports") && init?.method === "POST") return { ok: true, status: 201, json: async () => ({ filename: "promptvault-test.zip", downloadUrl: "/api/v1/exports/promptvault-test.zip" }) };
       throw new Error(`unexpected ${url}`);
     }));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -25,5 +26,7 @@ describe("SettingsPage", () => {
     expect(await screen.findByText("凭据已配置")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "测试连接" }));
     expect(await screen.findByText("连接测试成功")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "生成数据备份" }));
+    expect(await screen.findByRole("link", { name: "下载备份" })).toHaveAttribute("href", "/api/v1/exports/promptvault-test.zip");
   });
 });

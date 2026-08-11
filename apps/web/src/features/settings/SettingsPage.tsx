@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, KeyRound, PlugZap, Save } from "lucide-react";
+import { CheckCircle2, DatabaseBackup, Download, KeyRound, PlugZap, Save } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../lib/api-client";
 import "./settings.css";
 
 type Provider = "openai" | "microsoft";
 type SettingsStatus = { translation: { provider: Provider | null; configured: boolean; model: string | null; endpoint?: string | null; region?: string | null } };
+type ExportResult = { filename: string; downloadUrl: string };
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -26,6 +27,7 @@ export function SettingsPage() {
     },
   });
   const testMutation = useMutation({ mutationFn: () => api<void>("/settings/translation-provider/test", { method: "POST" }) });
+  const exportMutation = useMutation({ mutationFn: () => api<ExportResult>("/exports", { method: "POST" }) });
 
   return <main className="settings-page">
     <header className="page-header"><div><h1>设置</h1><span className="count">本机凭据、翻译服务与数据管理</span></div></header>
@@ -39,6 +41,10 @@ export function SettingsPage() {
         {testMutation.isSuccess ? <p className="success-message">连接测试成功</p> : null}
         {saveMutation.isError || testMutation.isError ? <p className="form-error">{(saveMutation.error ?? testMutation.error)?.message}</p> : null}
       </div>
+    </section>
+    <section className="settings-section" aria-labelledby="export-heading">
+      <header><div className="section-icon"><DatabaseBackup size={17} /></div><div><h2 id="export-heading">数据备份</h2><p>导出 Prompt、知识库记录和本地资产。</p></div></header>
+      <div className="export-panel"><button className="primary-button" disabled={exportMutation.isPending} onClick={() => exportMutation.mutate()}><DatabaseBackup size={15} />{exportMutation.isPending ? "正在生成..." : "生成数据备份"}</button>{exportMutation.data ? <a className="secondary-button download-link" href={exportMutation.data.downloadUrl} download={exportMutation.data.filename}><Download size={15} />下载备份</a> : null}{exportMutation.isError ? <p className="form-error">{exportMutation.error.message}</p> : null}</div>
     </section>
   </main>;
 }

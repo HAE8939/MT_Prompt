@@ -16,6 +16,8 @@ import type { CredentialStore } from "./modules/settings/credential-store.js";
 import { WindowsCredentialStore } from "./modules/settings/windows-credential-store.js";
 import { SettingsService } from "./modules/settings/settings.service.js";
 import { registerSettingsRoutes } from "./modules/settings/settings.routes.js";
+import { ExportService } from "./modules/export/export.service.js";
+import { registerExportRoutes } from "./modules/export/export.routes.js";
 
 export type AppOptions = { prisma?: PrismaClient; translator?: TranslationProvider; credentialStore?: CredentialStore };
 
@@ -35,6 +37,7 @@ export async function buildApp(options: AppOptions = {}) {
   await registerKnowledgeRoutes(app, new KnowledgeService(prisma));
   const settings = new SettingsService(options.credentialStore ?? new WindowsCredentialStore());
   await registerSettingsRoutes(app, settings);
+  await registerExportRoutes(app, new ExportService(prisma, storageRoot, join(import.meta.dirname, "..", "..", "..", "exports")));
   await registerCompilerRoutes(app, new CompilerService(prisma, options.translator ?? (() => settings.getProvider())));
 
   if (ownsPrisma) {
