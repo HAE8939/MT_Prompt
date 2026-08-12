@@ -1,4 +1,4 @@
-import { Archive, BookOpen, Database, Settings, Sparkles } from "lucide-react";
+import { Archive, BookOpen, Settings, Sparkles } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
 const nav = [
@@ -11,11 +11,11 @@ const nav = [
 export function AppShell() {
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand"><span className="brand-mark"><Database size={17} /></span><span>PromptVault</span></div>
+      <div className="brand"><span className="brand-mark"><img src="/logo.svg" alt="" /></span><span>MT-Prompt</span></div>
       <nav className="main-nav" aria-label="主导航">
         {nav.map(({ to, label, icon: Icon }) => <NavLink key={to} to={to} className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}><Icon size={16} /><span>{label}</span></NavLink>)}
       </nav>
-      <div className="sidebar-footer"><span className="status-dot" />本地运行中</div>
+      <div className="sidebar-footer"><span className="status-dot" />浏览器 Vault</div>
     </aside>
     <div className="workspace"><Outlet /></div>
   </div>;

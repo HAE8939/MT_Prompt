@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./app/App";
 import "./styles.css";
+import "./workbench.css";
 
 const root = document.getElementById("root");
 

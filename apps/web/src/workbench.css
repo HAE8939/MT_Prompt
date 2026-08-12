@@ -1,0 +1,44 @@
+:root {
+  --sidebar: #10231b;
+  --accent: #a8cf45;
+  --accent-soft: #29392d;
+  --border: #34413b;
+  --border-strong: #4a5b52;
+}
+
+.app-shell { grid-template-columns: 176px minmax(0, 1fr); }
+.sidebar { border-color: #294338; background: var(--sidebar); }
+.brand-mark { border-color: #50705e; background: #183429; color: #b7da57; }
+.brand-mark img { display: block; width: 18px; height: 18px; }
+.nav-item { color: #aab8b0; }
+.nav-item:hover { background: #193128; color: #edf4ef; }
+.nav-item.active { background: #234133; color: #f3f8f5; }
+.sidebar-footer { border-color: #294338; color: #83978c; }
+.status-dot { background: var(--accent); }
+
+@media (max-width: 1024px) {
+  .app-shell { grid-template-columns: 64px minmax(0, 1fr); }
+  .sidebar { padding: 14px 8px; }
+  .brand { justify-content: center; padding: 0 0 18px; }
+  .brand > span:last-child, .nav-item span, .sidebar-footer { display: none; }
+  .nav-item { justify-content: center; padding: 0; }
+  .nav-item.active::before { left: -8px; }
+  .detail-panel { left: 64px; }
+}
+
+@media (max-width: 640px) {
+  .app-shell { display: block; padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+  .sidebar { position: fixed; inset: auto 0 0; z-index: 50; width: auto; height: calc(60px + env(safe-area-inset-bottom)); padding: 0 8px env(safe-area-inset-bottom); border: 0; border-top: 1px solid #294338; }
+  .brand, .sidebar-footer { display: none; }
+  .main-nav { display: grid; grid-template-columns: repeat(4, 1fr); height: 60px; gap: 0; }
+  .nav-item { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-height: 60px; padding: 0; border-radius: 0; font-size: 10px; }
+  .nav-item span { display: block; }
+  .nav-item.active::before { inset: 0 auto auto 50%; width: 28px; height: 2px; transform: translateX(-50%); }
+  .library-main { padding: 16px 12px 28px; }
+  .detail-panel { inset: 0 0 60px; }
+  .page-header { flex-wrap: wrap; gap: 12px; }
+  .page-header > div { min-width: 0; }
+  .modal-backdrop { padding: 0; }
+  .modal { max-height: 100dvh; border-radius: 0; }
+  .prompt-grid { grid-template-columns: 1fr; }
+}
