@@ -1,0 +1,114 @@
+import { afterEach, describe, expect, it } from "vitest";
+import type { PromptRecord } from "../domain/types";
+import { requestResult, transactionDone } from "./idb-helpers";
+import { initializeVault } from "./initialize-vault";
+import { deleteVault, openVault } from "./open-vault";
+import { STORES, VAULT_NAME, VAULT_VERSION } from "./schema";
+
+const APPROVED_TITLES = [
+  "毛坯房转现代客厅效果图",
+  "卫生间防水与石材湿区综合展板",
+  "现代中餐厅动线与材质综合展板",
+  "民宿外立面改造综合展板",
+  "无主灯吊顶施工工艺综合展板",
+  "屋顶花园空中露台综合展板",
+  "五星级酒店大堂综合设计展板",
+  "城市更新商业街区综合展板",
+  "户外铝合金凉亭",
+  "黑胡桃实木餐椅",
+].sort();
+
+async function readPrompts(): Promise<PromptRecord[]> {
+  const db = await openVault();
+  const transaction = db.transaction("prompts", "readonly");
+  const prompts = await requestResult<PromptRecord[]>(
+    transaction.objectStore("prompts").getAll(),
+  );
+  await transactionDone(transaction);
+  return prompts;
+}
+
+afterEach(async () => {
+  await deleteVault();
+});
+
+describe("initializeVault", () => {
+  it("creates the versioned Vault schema and required indexes", async () => {
+    const db = await openVault();
+
+    expect(db.name).toBe(VAULT_NAME);
+    expect(db.version).toBe(VAULT_VERSION);
+    expect([...db.objectStoreNames]).toEqual([...STORES].sort());
+
+    const transaction = db.transaction([...STORES], "readonly");
+    expect([...transaction.objectStore("prompts").indexNames]).toEqual([
+      "favorite",
+      "mediaType",
+      "updatedAt",
+    ]);
+    expect([...transaction.objectStore("assets").indexNames]).toEqual([
+      "promptId",
+    ]);
+    expect([...transaction.objectStore("versions").indexNames]).toEqual([
+      "promptId",
+    ]);
+    expect([...transaction.objectStore("knowledge").indexNames]).toEqual([
+      "kind",
+      "stableKey",
+    ]);
+    expect(transaction.objectStore("knowledge").index("stableKey").unique).toBe(
+      false,
+    );
+    expect(transaction.objectStore("settings").keyPath).toBe("key");
+    expect(transaction.objectStore("meta").keyPath).toBe("key");
+    await transactionDone(transaction);
+  });
+
+  it("imports exactly the ten approved examples once", async () => {
+    await initializeVault();
+    await initializeVault();
+
+    const prompts = await readPrompts();
+    expect(prompts).toHaveLength(10);
+    expect(prompts.map(({ title }) => title).sort()).toEqual(APPROVED_TITLES);
+    expect(prompts.map(({ id }) => id).sort()).toEqual(
+      Array.from({ length: 10 }, (_, index) =>
+        `builtin-prompt-${String(index + 1).padStart(2, "0")}`,
+      ),
+    );
+    expect(prompts.every(({ contentZh, contentEn, origin }) =>
+      contentZh.length > 0 && contentEn.length > 0 && origin === "BUILT_IN"
+    )).toBe(true);
+  });
+
+  it("does not restore a deleted example after initialization is recorded", async () => {
+    await initializeVault();
+    const db = await openVault();
+    const transaction = db.transaction("prompts", "readwrite");
+    transaction.objectStore("prompts").delete("builtin-prompt-01");
+    await transactionDone(transaction);
+
+    await initializeVault();
+
+    expect(await readPrompts()).toHaveLength(9);
+  });
+
+  it("does not overwrite an edited example after initialization is recorded", async () => {
+    await initializeVault();
+    const db = await openVault();
+    const transaction = db.transaction("prompts", "readwrite");
+    const store = transaction.objectStore("prompts");
+    const prompt = await requestResult<PromptRecord>(
+      store.get("builtin-prompt-01"),
+    );
+    store.put({ ...prompt, title: "我的客厅提示词" });
+    await transactionDone(transaction);
+
+    await initializeVault();
+
+    const edited = (await readPrompts()).find(
+      ({ id }) => id === "builtin-prompt-01",
+    );
+    expect(edited?.title).toBe("我的客厅提示词");
+  });
+});
