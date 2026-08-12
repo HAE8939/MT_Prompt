@@ -1,51 +1,42 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createPromptRepository } from "../../vault/prompt-repository";
+import { deleteVault } from "../../vault/open-vault";
+import { VaultProvider } from "../../vault/VaultProvider";
 import { GeneratorPage } from "./GeneratorPage";
 
 describe("GeneratorPage", () => {
-  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
-
-  it("generates a bilingual Prompt from a selected task", async () => {
-    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/models")) return { ok: true, status: 200, json: async () => [{ id: "m1", stableKey: "gpt-image-2", name: "GPT-IMAGE 2", tasks: [{ id: "t1", nameZh: "场景保持修改", templates: [{ id: "tpl1", nameZh: "场景保持模板" }] }] }] };
-      if (url.includes("/skills")) return { ok: true, status: 200, json: async () => ({ data: [] }) };
-      if (url.includes("/compilations/run1/save-as-prompt")) return { ok: true, status: 201, json: async () => ({ id: "p1", title: "将白天改成蓝调夜景" }) };
-      if (init?.method === "POST") return { ok: true, status: 201, json: async () => ({ id: "run1", contentZh: "保持空间结构，将白天改成蓝调夜景。", contentEn: "Preserve the spatial structure and change daylight to blue hour.", translationStatus: "SUCCEEDED" }) };
-      throw new Error(`unexpected ${url}`);
-    }));
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(<QueryClientProvider client={client}><GeneratorPage /></QueryClientProvider>);
-
-    await screen.findByLabelText("模型");
-    await userEvent.type(screen.getByLabelText("任务要求"), "将白天改成蓝调夜景");
-    await userEvent.click(screen.getByRole("button", { name: "生成 Prompt" }));
-
-    expect(await screen.findByText("保持空间结构，将白天改成蓝调夜景。")).toBeVisible();
-    expect(screen.getByText("Preserve the spatial structure and change daylight to blue hour.")).toBeVisible();
-    await userEvent.click(screen.getByRole("button", { name: "保存到 Prompt 库" }));
-    expect(await screen.findByText("已保存到 Prompt 库")).toBeVisible();
+  afterEach(async () => {
+    cleanup();
+    vi.unstubAllGlobals();
+    await deleteVault();
   });
 
-  it("retries a failed English translation", async () => {
-    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url.includes("/models")) return { ok: true, status: 200, json: async () => [{ id: "m1", name: "GPT-IMAGE 2", tasks: [{ id: "t1", nameZh: "场景保持修改", templates: [{ id: "tpl1", nameZh: "场景保持模板" }] }] }] };
-      if (url.includes("/skills")) return { ok: true, status: 200, json: async () => ({ data: [] }) };
-      if (url.includes("/compilations/run2/retry-translation")) return { ok: true, status: 200, json: async () => ({ id: "run2", contentZh: "保持家具不变。", contentEn: "Keep the furniture unchanged.", translationStatus: "SUCCEEDED" }) };
-      if (init?.method === "POST") return { ok: true, status: 201, json: async () => ({ id: "run2", contentZh: "保持家具不变。", contentEn: null, translationStatus: "FAILED" }) };
-      throw new Error(`unexpected ${url}`);
-    }));
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(<QueryClientProvider client={client}><GeneratorPage /></QueryClientProvider>);
+  it("compiles and saves a bilingual Prompt entirely in the browser", async () => {
+    const fetch = vi.fn(() => Promise.reject(new Error("network must not be used")));
+    vi.stubGlobal("fetch", fetch);
+    render(<VaultProvider><GeneratorPage /></VaultProvider>);
 
-    await screen.findByLabelText("模型");
-    await userEvent.type(screen.getByLabelText("任务要求"), "保持家具不变");
+    await screen.findByLabelText("模板");
+    await userEvent.type(screen.getByLabelText("任务要求"), "将白天改成蓝调夜景");
+    await userEvent.click(screen.getByLabelText("空间一致性"));
     await userEvent.click(screen.getByRole("button", { name: "生成 Prompt" }));
-    await userEvent.click(await screen.findByRole("button", { name: "重试翻译" }));
 
-    expect(await screen.findByText("Keep the furniture unchanged.")).toBeVisible();
+    expect(await screen.findByText(/任务要求：将白天改成蓝调夜景/)).toBeVisible();
+    expect(screen.getByText(/Task requirement:/)).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "保存到 Prompt 库" }));
+
+    expect(await screen.findByText("已保存到 Prompt 库")).toBeVisible();
+    await waitFor(async () => {
+      const saved = await createPromptRepository().list({
+        sort: "createdAt",
+        order: "desc",
+      });
+      expect(saved.some(({ title, origin }) =>
+        title === "将白天改成蓝调夜景" && origin === "GENERATED"
+      )).toBe(true);
+    });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { PromptRecord } from "../domain/types";
+import type { KnowledgeRecord, PromptRecord } from "../domain/types";
 import { requestResult, transactionDone } from "./idb-helpers";
 import { initializeVault } from "./initialize-vault";
 import { deleteVault, openVault } from "./open-vault";
@@ -26,6 +26,16 @@ async function readPrompts(): Promise<PromptRecord[]> {
   );
   await transactionDone(transaction);
   return prompts;
+}
+
+async function readKnowledge(): Promise<KnowledgeRecord[]> {
+  const db = await openVault();
+  const transaction = db.transaction("knowledge", "readonly");
+  const records = await requestResult<KnowledgeRecord[]>(
+    transaction.objectStore("knowledge").getAll(),
+  );
+  await transactionDone(transaction);
+  return records;
 }
 
 afterEach(async () => {
@@ -79,6 +89,17 @@ describe("initializeVault", () => {
     expect(prompts.every(({ contentZh, contentEn, origin }) =>
       contentZh.length > 0 && contentEn.length > 0 && origin === "BUILT_IN"
     )).toBe(true);
+  });
+
+  it("imports the minimal built-in generator knowledge once", async () => {
+    await initializeVault();
+    await initializeVault();
+
+    const records = await readKnowledge();
+    expect(records.filter(({ kind }) => kind === "TEMPLATE")).toHaveLength(1);
+    expect(records.filter(({ kind }) => kind === "SKILL")).toHaveLength(2);
+    expect(records.filter(({ kind }) => kind === "RULE")).toHaveLength(1);
+    expect(records.every(({ owner }) => owner === "BUILT_IN")).toBe(true);
   });
 
   it("does not restore a deleted example after initialization is recorded", async () => {
