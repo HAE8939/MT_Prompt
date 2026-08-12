@@ -1,126 +1,55 @@
-# PromptVault
+# MT-Prompt
 
-PromptVault 是一个面向 Windows 的本地 Prompt 工作台，用于管理、编译和整理中英双语的 AI 图片与视频 Prompt。
-
-[English](#english) | [中文](#中文)
+[中文](#中文) | [English](#english)
 
 ## 中文
 
-### 项目简介
+MT-Prompt 是一个轻量的局域网 Prompt 工作台。程序负责管理、生成和分享提示词；用户的 Prompt、图片、视频、模板、Skill、界面设置及 Provider 配置均保存在访问设备的浏览器 IndexedDB 中，不写入 Docker 容器。
 
-PromptVault 以本地 SQLite 和文件系统作为数据源，适合个人维护可复用的 Prompt、模板、Skill、个人规则和素材。用户可以用中文填写需求，编译器生成中文与英文 Prompt，并保留版本、来源和素材关联。
+### 核心能力
 
-### 当前能力
+- Prompt 库：搜索、图片/视频/收藏筛选、列表/网格视图、详情和编辑。
+- 素材管理：为 Prompt 添加或删除 PNG、JPEG、WebP、GIF、MP4、WebM 素材。
+- 本地生成器：中文填写需求，在浏览器内生成中文与英文 Prompt。
+- 模板与技能：模板、Skill、规则均保存在当前浏览器 Vault。
+- `.prompt` 分享：标准 ZIP 容器，可包含 Prompt 及关联图片/视频，也可选择包含界面设置或完整知识库。
+- 通用 Provider：仅在用户明确操作时通过无状态代理请求 OpenAI-compatible Provider。
 
-- Prompt 库：搜索、分类、图片/视频/收藏筛选、分页、排序和高级筛选。
-- Prompt 详情：双语内容、封面、图片与视频素材、版本历史和来源信息。
-- 编辑与版本：修改 Prompt、恢复历史版本、比较版本差异、采纳 AI 建议为新版本。
-- 生成器：模板字段校验、默认值、条件字段、Skill 冲突提示和编译来源展示。
-- 数据安全：ZIP 备份、校验预览、MERGE/REPLACE 恢复、恢复前自动备份、资产完整性扫描和回滚保护。
-- AI Provider：通用 OpenAI-compatible Provider，支持优化、变体、一致性检查和模型重写。
-- 本地凭据：翻译服务与 AI Provider 密钥仅保存于 Windows Credential Manager，不写入 SQLite、日志或导出文件。
-- 数据集：支持幂等导入 Ciyuan Prompt 集合，现有 50 条 Prompt 会被保留。
+### Docker 部署
 
-### 环境要求
+```bash
+docker compose up -d --build
+```
 
-- Windows
-- Node.js 20 或更高版本
-- npm
+访问 `http://服务器局域网IP:3000`。可在 `.env` 中设置 `MT_PROMPT_PORT` 更换宿主机端口。健康检查地址为 `/health`。Compose 不声明数据卷，容器文件系统只读。
 
-### 快速开始
+### 数据与跨设备
+
+每个浏览器配置文件拥有独立的 `mt-prompt-vault` IndexedDB。重新创建 Docker 容器不会删除浏览器数据，但换电脑、换浏览器或清除站点数据不会自动同步。跨设备迁移请从 Prompt 库导出 `.prompt`，再在目标设备导入。
+
+`.prompt` 永远不包含 Provider 地址、模型、密钥或等价配置字段。Provider 配置只保存在当前浏览器；共享设备上的其他浏览器配置文件看不到这些数据。浏览器站点数据并不等同于操作系统凭据保险箱，公共设备使用后应清除 Provider。
+
+项目中的 `database/`、`storage/`、`prisma/` 和旧 API 模块仅作为早期版本迁移与审计资料保留，不属于当前生产运行边界。
+
+### 本地开发
 
 ```bash
 npm install
-npm run setup
 npm run dev
 ```
 
-启动后访问：
+Web 默认运行于 `http://127.0.0.1:5173`，API 默认运行于 `http://127.0.0.1:3000`。
 
-- Web：<http://127.0.0.1:5173>
-- API：<http://127.0.0.1:3000>
-
-首次使用建议先在“设置”中配置翻译服务和通用 AI Provider。Provider 的 Base URL、密钥和模型均可由用户自行替换；当前 Provider 的模型请求超时不会阻塞本地 Prompt 管理功能。
-
-### 常用命令
-
-| 命令 | 用途 |
-| --- | --- |
-| `npm run setup` | 创建运行目录、生成 Prisma Client、同步 SQLite Schema 并初始化内置知识 |
-| `npm run dev` | 同时启动 API 和 Web |
-| `npm test` | 运行所有工作区单元测试和组件测试 |
-| `npm run test:e2e` | 运行 Chrome 验收流程 |
-| `npm run typecheck` | 检查所有工作区的 TypeScript 类型 |
-| `npm run import:ciyuan01` | 幂等导入 Ciyuan Prompt 集合 |
-
-### 数据与备份
-
-运行时数据默认位于以下目录：
-
-- `database/`：SQLite 数据库
-- `storage/`：本地素材文件
-- `exports/`：导出的 ZIP 备份
-- `backups/`：用户保留的备份文件
-
-这些目录属于本地运行数据，不应提交到 Git。执行 Prisma Schema 迁移前，应先启动 API 并调用 `POST /api/v1/exports` 创建备份，再执行迁移或 `npx prisma db push --skip-generate`。
-
-### 项目结构
-
-- `apps/api`：Fastify API、业务服务和本地素材存储适配器
-- `apps/web`：React/Vite 工作台界面
-- `packages/contracts`：共享请求与响应契约
-- `packages/compiler`：确定性的双语 Prompt 编译器
-- `prisma`：数据库 Schema、种子数据和导入脚本
-- `docs/reference`：原始中文产品与架构文档
-- `docs/superpowers`：已批准的规格与实施计划
-
-### 相关文档
-
-- [`docs/architecture.md`](docs/architecture.md)：运行边界和请求流程
-- [`docs/database.md`](docs/database.md)：Prisma 数据模型和本地数据安全
-- [`docs/prompt-engine.md`](docs/prompt-engine.md)：双语编译与翻译行为
-- [`docs/changelog.md`](docs/changelog.md)：功能变更记录
-
-### 当前范围
-
-PromptVault 当前是单用户、本地优先应用。桌面打包、云端同步、团队协作、账号体系和远程权限控制暂不属于当前版本范围。
+```bash
+npm test
+npm run typecheck
+npm run build --workspaces --if-present
+```
 
 ## English
 
-PromptVault is a local Windows workbench for managing, compiling, and organizing bilingual AI image and video prompts.
+MT-Prompt is a lightweight LAN workbench for managing, generating, and sharing bilingual prompts. Prompts, media, knowledge, UI preferences, and Provider configuration live in each device's browser IndexedDB; Docker stores no user data.
 
-### Development
+Deploy with `docker compose up -d --build`, then open `http://LAN_SERVER_IP:3000`. Each browser profile has an independent Vault and there is no automatic cross-device sync. Use standard ZIP-based `.prompt` packages to transfer Prompts and associated media. Packages may optionally include interface settings or the full knowledge library, but never Provider URL, model, key, or aliases.
 
-```bash
-npm install
-npm run setup
-npm run dev
-```
-
-The web app runs at `http://127.0.0.1:5173` and the API at `http://127.0.0.1:3000`.
-
-### Commands
-
-- `npm run setup`: prepare runtime directories, generate Prisma Client, sync the SQLite schema, and seed built-in knowledge.
-- `npm run dev`: start the API and web app.
-- `npm test`: run workspace unit and component tests.
-- `npm run test:e2e`: run the Chrome acceptance workflows.
-- `npm run typecheck`: type-check all workspaces.
-- `npm run import:ciyuan01`: idempotently import the Ciyuan prompt collection.
-
-### Structure
-
-- `apps/api`: Fastify API and local asset storage adapter.
-- `apps/web`: React/Vite workbench.
-- `packages/contracts`: shared request and response contracts.
-- `packages/compiler`: deterministic bilingual prompt compiler.
-- `prisma`: schema, seed data, runtime setup, and import scripts.
-- `docs/reference`: original Chinese product and architecture documents.
-- `docs/superpowers`: approved specification and implementation plan.
-
-### Documentation
-
-- `docs/architecture.md`: runtime boundaries and request flow.
-- `docs/database.md`: Prisma data model and local data safety.
-- `docs/prompt-engine.md`: bilingual compilation and translation behavior.
-- `docs/changelog.md`: implemented feature history.
+For development, run `npm install` and `npm run dev`. See [architecture](docs/architecture.md) and [data storage](docs/database.md) for the current runtime boundary.

@@ -15,6 +15,7 @@
     "import:ciyuan01": "tsx prisma/import-ciyuan01.ts",
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "playwright test",
+    "test:boundary": "vitest run scripts/check-production-boundary.test.ts",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {

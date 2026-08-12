@@ -1,0 +1,18 @@
+services:
+  mt-prompt:
+    build: .
+    image: mt-prompt:local
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      WEB_ROOT: /app/web
+      PROVIDER_TIMEOUT_MS: ${PROVIDER_TIMEOUT_MS:-30000}
+      PROVIDER_MAX_RESPONSE_BYTES: ${PROVIDER_MAX_RESPONSE_BYTES:-2097152}
+    ports:
+      - "${MT_PROMPT_PORT:-3000}:3000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true

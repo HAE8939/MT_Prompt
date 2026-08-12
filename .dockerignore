@@ -1,0 +1,17 @@
+.git
+.superpowers
+node_modules
+**/dist
+**/*.tsbuildinfo
+.env
+database
+storage
+data
+exports
+backups
+test-results
+playwright-report
+coverage
+docs
+prisma
+*.log

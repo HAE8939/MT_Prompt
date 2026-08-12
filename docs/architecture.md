@@ -1,52 +1,27 @@
-# PromptVault Architecture
+# MT-Prompt 架构
 
-## Purpose
+## 运行边界
 
-PromptVault is a local-first Windows workbench for organizing image and video prompts, compiling reusable bilingual prompts, and keeping prompt assets and history on the user's machine.
+MT-Prompt 采用“无状态服务 + 浏览器 Vault”结构。Docker 中的 Fastify 只提供 Web 静态文件、`/health` 和 `/api/provider/chat/completions`。它不提供 Prompt、素材、知识库或设置的 CRUD 接口。
 
-## Runtime
-
-| Layer | Technology | Address | Responsibility |
+| 层 | 技术 | 职责 | 是否保存用户数据 |
 | --- | --- | --- | --- |
-| Web | React, Vite, TanStack Query | `127.0.0.1:5173` | Library, generator, knowledge, and settings UI |
-| API | Fastify, Zod, Prisma | `127.0.0.1:3000` | Validation, orchestration, persistence, assets, export |
-| Database | SQLite | `database/promptvault.db` | Prompt, knowledge, compilation, and version metadata |
-| Files | Local filesystem | `storage/`, `exports/` | Uploaded images and generated ZIP archives |
+| 浏览器 | React、IndexedDB、Web Crypto | Prompt、素材、版本、知识、设置、生成与导入导出 | 是，仅当前浏览器 |
+| 容器 | Fastify、静态文件 | 页面交付、健康检查、受限 Provider 转发 | 否 |
+| `.prompt` | 标准 ZIP、SHA-256 | 用户主动分享或迁移资产 | 由用户管理 |
 
-Vite proxies `/api/v1` to the API during development. The API only listens on loopback and CORS only allows the local web origin.
+## 主要流程
 
-## Code Boundaries
+1. 首次访问时创建 `mt-prompt-vault` 并幂等写入十条内置 Prompt。
+2. 库、编辑器、生成器和知识页面直接通过仓库接口访问 IndexedDB。
+3. 基础双语生成在浏览器内完成，不依赖 Provider。
+4. 用户明确请求 Provider 功能时，浏览器把本次地址、模型、密钥和消息发送给同源代理；代理校验公网 HTTPS 目标并转发，不落盘。
+5. 导出在浏览器中生成 `.prompt`；导入先校验 ZIP 路径、清单、媒体类型、摘要和 Provider 禁区，再用跨 Store 事务写入。
 
-- `apps/web`: route-level React features and the shared API client.
-- `apps/api`: Fastify composition plus feature services and routes.
-- `packages/contracts`: shared Zod request and query contracts.
-- `packages/compiler`: pure deterministic bilingual compilation.
-- `prisma`: schema, seed data, runtime path setup, and Ciyuan import.
+## 安全边界
 
-The API service layer owns transactions and filesystem coordination. React components never access SQLite or local storage paths directly.
-
-## Main Flows
-
-1. The Prompt library requests paginated Prompt DTOs, including model, task, tags, assets, and provenance.
-2. The generator loads models, templates, and compatible Skills, then posts Chinese input to the compiler API.
-3. The compiler snapshots the selected knowledge, produces Chinese output, attempts translation, and persists a `CompilationRun`.
-4. Saving the result creates one linked `Prompt` and its initial `PromptVersion` in a transaction.
-5. Asset uploads are written to a temporary file, atomically renamed, then recorded in SQLite. Failed database writes remove the file.
-6. Export builds an atomic ZIP containing JSON metadata, assets, checksums, and a manifest.
-
-## API Areas
-
-- `/api/v1/prompts`, `/versions`: Prompt CRUD, server pagination/sorting, bulk updates, duplicate reports, recycle-bin restore, AI proposal versions, and history diff.
-- `/api/v1/prompts/:id/assets`, `/assets/:id`: image/video upload, content streaming, and deletion.
-- `/api/v1/models`, `/templates`, `/skills`, `/personal-rules`: knowledge catalog and user-owned edits.
-- `/api/v1/compiler/compile`, `/compilations/:id/*`: compile, translate retry, and save.
-- `/api/v1/settings/*`: translation configuration and connection test.
-- `/api/v1/exports`: create and download a backup archive.
-- `/api/v1/imports/validate`, `/api/v1/imports`, `/api/v1/integrity`: validate, merge, or replace backup archives and scan local asset consistency.
-- `/api/v1/ai/*`: explicit user-triggered Prompt assistance through a generic OpenAI-compatible Provider.
-
-## Security and Scope
-
-Translation secrets are stored in Windows Credential Manager, never in SQLite or exported ZIP files. The current product is single-user and local-only; authentication, remote sync, and multi-user authorization are intentionally outside V1.
-
-Restore writes are staged and run with a Prisma transaction. REPLACE requires a successful automatic export first; overwritten asset files are journaled and restored if the transaction fails.
+- 生产 API 不注册旧 `/api/v1/*` 用户数据路由。
+- Provider 代理拒绝私网、本机目标和重定向，并限制请求体、超时及响应大小。
+- Provider 配置和请求内容不写日志、不写容器文件。
+- Compose 无数据卷，容器以非 root 用户和只读文件系统运行。
+- `database/`、`storage/`、`prisma/` 仅为旧版本迁移资料。
