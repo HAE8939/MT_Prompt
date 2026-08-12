@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 
-describe("GET /api/v1/health", () => {
+describe("GET /health", () => {
   it("reports the service as ready", async () => {
     const app = await buildApp();
     const response = await app.inject({
       method: "GET",
-      url: "/api/v1/health",
+      url: "/health",
     });
 
     expect(response.statusCode).toBe(200);
