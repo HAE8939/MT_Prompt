@@ -47,6 +47,27 @@ describe("LibraryPage", () => {
     await waitFor(() => expect(screen.getAllByText("已修改标题")).toHaveLength(2));
   });
 
+  it("adds and removes local media while editing a Prompt", async () => {
+    const repository = createPromptRepository();
+    const record = prompt("media-edit", "素材编辑", "IMAGE");
+    const oldAsset: PromptAsset = { id: "old-cover", promptId: record.id, role: "COVER", blob: new Blob(["old"], { type: "image/png" }), mimeType: "image/png", originalName: "old.png", byteSize: 3, checksum: "old", createdAt: now };
+    await repository.create(record, [oldAsset]);
+    render(<VaultProvider><LibraryPage /></VaultProvider>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "打开素材编辑" }));
+    await userEvent.click(screen.getByRole("button", { name: "编辑 Prompt" }));
+    await userEvent.click(screen.getByRole("button", { name: "删除素材 old.png" }));
+    await userEvent.upload(screen.getByLabelText("添加图片或视频素材"), new File(["new-image"], "new.webp", { type: "image/webp" }));
+    expect(await screen.findByText("new.webp")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "保存修改" }));
+
+    await waitFor(async () => {
+      const stored = await repository.listAssets(record.id);
+      expect(stored).toHaveLength(1);
+      expect(stored[0]).toMatchObject({ originalName: "new.webp", mimeType: "image/webp", role: "COVER" });
+    });
+  });
+
   it("never requests the legacy Prompt API", async () => {
     render(<VaultProvider><LibraryPage /></VaultProvider>);
     await screen.findByRole("button", { name: "导入 .prompt" });
