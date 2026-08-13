@@ -18,6 +18,8 @@ export const BUILT_IN_KNOWLEDGE: readonly KnowledgeRecord[] = [
     category: "general",
     updatedAt,
   },
+  { id: "builtin-template-image-board", stableKey: "template.image-board", kind: "TEMPLATE", owner: "BUILT_IN", nameZh: "综合设计展板", nameEn: "Comprehensive design board", contentZh: "围绕{{requirement}}组织平面、动线、材质、节点和展示层级。", contentEn: "Organize plans, circulation, materials, details, and presentation hierarchy around {{requirement}}.", enabled: true, version: 1, priority: 5, category: "presentation", updatedAt },
+  { id: "builtin-template-product", stableKey: "template.product-design", kind: "TEMPLATE", owner: "BUILT_IN", nameZh: "产品与家具设计", nameEn: "Product and furniture design", contentZh: "针对{{requirement}}表达比例、结构、材质、工艺与使用场景。", contentEn: "For {{requirement}}, express proportions, structure, materials, fabrication, and use context.", enabled: true, version: 1, priority: 5, category: "product", updatedAt },
   {
     id: "builtin-skill-spatial",
     stableKey: "skill.spatial-consistency",
@@ -33,6 +35,8 @@ export const BUILT_IN_KNOWLEDGE: readonly KnowledgeRecord[] = [
     category: "constraints",
     updatedAt,
   },
+  { id: "builtin-skill-composition", stableKey: "skill.composition-hierarchy", kind: "SKILL", owner: "BUILT_IN", nameZh: "构图与信息层级", nameEn: "Composition hierarchy", contentZh: "建立明确的主体、辅助信息、留白和视觉阅读顺序。", contentEn: "Establish a clear subject, supporting information, whitespace, and visual reading order.", enabled: true, version: 1, priority: 15, category: "composition", updatedAt },
+  { id: "builtin-skill-lighting", stableKey: "skill.lighting", kind: "SKILL", owner: "BUILT_IN", nameZh: "光线与氛围", nameEn: "Lighting and atmosphere", contentZh: "说明主光方向、色温、阴影层次、反射控制和真实使用氛围。", contentEn: "Specify key-light direction, color temperature, shadow depth, reflection control, and realistic use atmosphere.", enabled: true, version: 1, priority: 12, category: "lighting", updatedAt },
   {
     id: "builtin-skill-material",
     stableKey: "skill.material-detail",
@@ -63,4 +67,5 @@ export const BUILT_IN_KNOWLEDGE: readonly KnowledgeRecord[] = [
     category: "constraints",
     updatedAt,
   },
+  { id: "builtin-rule-no-garble", stableKey: "rule.no-garbled-text", kind: "RULE", owner: "BUILT_IN", nameZh: "避免乱码与伪文字", nameEn: "Avoid garbled text", contentZh: "画面中的标注、招牌和文字应清晰可读；无法可靠生成时减少文字。", contentEn: "Keep labels, signs, and text legible; reduce text when it cannot be rendered reliably.", enabled: true, version: 1, priority: 20, category: "quality", updatedAt },
 ];

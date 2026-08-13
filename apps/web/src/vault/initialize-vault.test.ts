@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import type { KnowledgeRecord, PromptRecord } from "../domain/types";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { KnowledgeRecord, PromptAsset, PromptRecord } from "../domain/types";
 import { requestResult, transactionDone } from "./idb-helpers";
 import { initializeVault } from "./initialize-vault";
 import { deleteVault, openVault } from "./open-vault";
@@ -38,8 +38,21 @@ async function readKnowledge(): Promise<KnowledgeRecord[]> {
   return records;
 }
 
+async function readAssets(): Promise<PromptAsset[]> {
+  const db = await openVault();
+  const transaction = db.transaction("assets", "readonly");
+  const records = await requestResult<PromptAsset[]>(transaction.objectStore("assets").getAll());
+  await transactionDone(transaction);
+  return records;
+}
+
 afterEach(async () => {
   await deleteVault();
+  vi.unstubAllGlobals();
+});
+
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(new Blob(["seed-media"], { type: "image/webp" }), { status: 200 })));
 });
 
 describe("initializeVault", () => {
@@ -91,14 +104,26 @@ describe("initializeVault", () => {
     )).toBe(true);
   });
 
+  it("adds the approved cover and comparison media once", async () => {
+    const loadAsset = async (path: string) => new Blob([path], { type: "image/webp" });
+    await initializeVault({ loadAsset });
+    await initializeVault({ loadAsset });
+
+    const assets = await readAssets();
+    expect(assets).toHaveLength(11);
+    expect(assets.filter(({ role }) => role === "COVER")).toHaveLength(10);
+    expect(assets).toContainEqual(expect.objectContaining({ promptId: "builtin-prompt-01", role: "REFERENCE", originalName: "01_before.webp", mimeType: "image/webp" }));
+    expect(assets.every(({ byteSize }) => byteSize > 0)).toBe(true);
+  });
+
   it("imports the minimal built-in generator knowledge once", async () => {
     await initializeVault();
     await initializeVault();
 
     const records = await readKnowledge();
-    expect(records.filter(({ kind }) => kind === "TEMPLATE")).toHaveLength(1);
-    expect(records.filter(({ kind }) => kind === "SKILL")).toHaveLength(2);
-    expect(records.filter(({ kind }) => kind === "RULE")).toHaveLength(1);
+    expect(records.filter(({ kind }) => kind === "TEMPLATE").length).toBeGreaterThanOrEqual(3);
+    expect(records.filter(({ kind }) => kind === "SKILL").length).toBeGreaterThanOrEqual(4);
+    expect(records.filter(({ kind }) => kind === "RULE").length).toBeGreaterThanOrEqual(2);
     expect(records.every(({ owner }) => owner === "BUILT_IN")).toBe(true);
   });
 

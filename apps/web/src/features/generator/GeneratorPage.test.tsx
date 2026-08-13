@@ -37,6 +37,6 @@ describe("GeneratorPage", () => {
         title === "将白天改成蓝调夜景" && origin === "GENERATED"
       )).toBe(true);
     });
-    expect(fetch).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalledWith(expect.stringMatching(/^https?:\/\//));
   });
 });

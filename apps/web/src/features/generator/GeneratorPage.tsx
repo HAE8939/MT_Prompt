@@ -25,7 +25,7 @@ export function GeneratorPage() {
     knowledge.list().then((nextRecords) => {
       if (!active) return;
       setRecords(nextRecords);
-      setTemplateId(nextRecords.find(({ kind, enabled }) => kind === "TEMPLATE" && enabled)?.id ?? "");
+      setTemplateId(nextRecords.find(({ stableKey, kind, enabled }) => kind === "TEMPLATE" && enabled && stableKey === "template.general")?.id ?? nextRecords.find(({ kind, enabled }) => kind === "TEMPLATE" && enabled)?.id ?? "");
       setLoadState("ready");
     }).catch(() => {
       if (active) setLoadState("error");
@@ -34,7 +34,7 @@ export function GeneratorPage() {
   }, [knowledge]);
 
   const templates = useMemo(
-    () => records.filter(({ kind, enabled }) => kind === "TEMPLATE" && enabled),
+    () => records.filter(({ kind, enabled }) => kind === "TEMPLATE" && enabled).sort((left, right) => (left.stableKey === "template.general" ? -1 : right.stableKey === "template.general" ? 1 : left.priority - right.priority)),
     [records],
   );
   const skills = useMemo(
