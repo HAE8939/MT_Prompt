@@ -116,15 +116,91 @@ describe("initializeVault", () => {
     expect(assets.every(({ byteSize }) => byteSize > 0)).toBe(true);
   });
 
-  it("imports the minimal built-in generator knowledge once", async () => {
+  it("imports the complete built-in generator knowledge once", async () => {
     await initializeVault();
     await initializeVault();
 
     const records = await readKnowledge();
-    expect(records.filter(({ kind }) => kind === "TEMPLATE").length).toBeGreaterThanOrEqual(3);
-    expect(records.filter(({ kind }) => kind === "SKILL").length).toBeGreaterThanOrEqual(4);
-    expect(records.filter(({ kind }) => kind === "RULE").length).toBeGreaterThanOrEqual(2);
+    expect(records.filter(({ kind }) => kind === "TEMPLATE")).toHaveLength(19);
+    expect(records.filter(({ kind }) => kind === "SKILL")).toHaveLength(15);
+    expect(records.filter(({ kind }) => kind === "RULE")).toHaveLength(2);
     expect(records.every(({ owner }) => owner === "BUILT_IN")).toBe(true);
+  });
+
+  it("adds newly shipped records when an older knowledge set is present", async () => {
+    const db = await openVault();
+    const transaction = db.transaction(["knowledge", "meta"], "readwrite");
+    transaction.objectStore("knowledge").add({
+      id: "builtin-skill-reference-lock",
+      stableKey: "reference-lock",
+      kind: "SKILL",
+      owner: "BUILT_IN",
+      nameZh: "旧参考图锁定",
+      nameEn: "Old Reference Lock",
+      contentZh: "旧内容",
+      contentEn: "Old content",
+      enabled: true,
+      version: 1,
+      priority: 0,
+      category: "REFERENCE",
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    } satisfies KnowledgeRecord);
+    transaction.objectStore("meta").put({ key: "knowledgeSetVersion", value: 2 });
+    await transactionDone(transaction);
+
+    await initializeVault();
+
+    const records = await readKnowledge();
+    expect(records).toHaveLength(36);
+    expect(records.find(({ stableKey }) => stableKey === "reference-lock")).toBeDefined();
+    expect(records.find(({ stableKey }) => stableKey === "reference-lock")?.nameEn)
+      .toBe("Reference Lock");
+  });
+
+  it("preserves a disabled built-in while refreshing its shipped definition", async () => {
+    await initializeVault();
+    const db = await openVault();
+    const transaction = db.transaction(["knowledge", "meta"], "readwrite");
+    const store = transaction.objectStore("knowledge");
+    const skill = await requestResult<KnowledgeRecord>(store.index("stableKey").get("reference-lock"));
+    store.put({ ...skill, enabled: false, contentEn: "Outdated shipped content" });
+    transaction.objectStore("meta").put({ key: "knowledgeSetVersion", value: 2 });
+    await transactionDone(transaction);
+
+    await initializeVault();
+
+    const upgraded = (await readKnowledge()).find(
+      ({ stableKey }) => stableKey === "reference-lock",
+    );
+    expect(upgraded?.enabled).toBe(false);
+    expect(upgraded?.contentEn).toContain("sole primary reference");
+  });
+
+  it("does not overwrite a user-owned record whose name conflicts with a built-in", async () => {
+    const userRecord: KnowledgeRecord = {
+      id: "user-reference-lock",
+      stableKey: "user.reference-lock",
+      kind: "SKILL",
+      owner: "USER",
+      nameZh: "参考图锁定",
+      nameEn: "Reference Lock",
+      contentZh: "我的内容",
+      contentEn: "My content",
+      enabled: false,
+      version: 7,
+      priority: 321,
+      category: "CUSTOM",
+      updatedAt: "2026-08-13T00:00:00.000Z",
+    };
+    const db = await openVault();
+    const transaction = db.transaction(["knowledge", "meta"], "readwrite");
+    transaction.objectStore("knowledge").add(userRecord);
+    transaction.objectStore("meta").put({ key: "knowledgeSetVersion", value: 2 });
+    await transactionDone(transaction);
+
+    await initializeVault();
+
+    expect((await readKnowledge()).find(({ id }) => id === userRecord.id)).toEqual(userRecord);
   });
 
   it("does not restore a deleted example after initialization is recorded", async () => {

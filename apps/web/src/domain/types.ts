@@ -6,6 +6,35 @@ export type KnowledgeKind = "TEMPLATE" | "SKILL" | "RULE";
 
 export type KnowledgeOwner = "BUILT_IN" | "USER";
 
+export interface ModelProfile {
+  stableKey: string;
+  name: string;
+  provider: string;
+  mediaType: MediaType;
+  description: string;
+  order: number;
+}
+
+export interface ModelTask {
+  stableKey: string;
+  modelKey: string;
+  nameZh: string;
+  nameEn: string;
+  capabilities: readonly string[];
+  sectionOrder: readonly string[];
+  order: number;
+}
+
+export interface TemplateFieldSchema {
+  fields: Array<{
+    name: string;
+    labelZh: string;
+    labelEn: string;
+    type: "textarea";
+    required: boolean;
+  }>;
+}
+
 export interface PromptAsset {
   id: string;
   promptId: string;
@@ -69,6 +98,10 @@ export interface KnowledgeRecord {
   priority: number;
   category: string;
   updatedAt: string;
+  modelKeys?: readonly string[];
+  taskKey?: string;
+  fieldSchema?: TemplateFieldSchema;
+  conflictGroup?: string | null;
 }
 
 export interface ProviderSettings {

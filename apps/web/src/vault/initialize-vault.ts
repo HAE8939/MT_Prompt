@@ -8,7 +8,7 @@ import { blobBytes } from "../transfer/hash";
 const EXAMPLE_SET_KEY = "exampleSetVersion";
 const EXAMPLE_SET_VERSION = 1;
 const KNOWLEDGE_SET_KEY = "knowledgeSetVersion";
-const KNOWLEDGE_SET_VERSION = 2;
+const KNOWLEDGE_SET_VERSION = 3;
 const ASSET_SET_KEY = "exampleAssetSetVersion";
 const ASSET_SET_VERSION = 1;
 
@@ -57,7 +57,11 @@ export async function initializeVault(options: InitializeOptions = {}): Promise<
     if (!knowledgeInitialized || knowledgeInitialized.value < KNOWLEDGE_SET_VERSION) {
       for (const record of BUILT_IN_KNOWLEDGE) {
         const existing = await requestResult<KnowledgeRecord | undefined>(knowledge.index("stableKey").get(record.stableKey));
-        if (!existing) knowledge.add(record);
+        if (!existing) {
+          knowledge.add(record);
+        } else if (existing.owner === "BUILT_IN") {
+          knowledge.put({ ...record, id: existing.id, enabled: existing.enabled });
+        }
       }
       meta.put({ key: KNOWLEDGE_SET_KEY, value: KNOWLEDGE_SET_VERSION });
     }
