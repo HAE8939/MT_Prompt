@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PromptAsset, PromptRecord } from "../../domain/types";
@@ -18,6 +18,11 @@ describe("LibraryPage", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network must not be used"))));
     vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:cover"), revokeObjectURL: vi.fn() });
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn(() => Promise.resolve()) },
+      configurable: true,
+      writable: true,
+    });
   });
   afterEach(async () => { cleanup(); vi.unstubAllGlobals(); await deleteVault(); });
 
@@ -80,5 +85,64 @@ describe("LibraryPage", () => {
     await createSettingsRepository().saveInterface({ theme: "system", language: "zh-CN", libraryView: "grid", compact: true });
     render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
     await waitFor(() => expect(screen.getByRole("button", { name: "网格视图" })).toHaveClass("active"));
+  });
+
+  it("exposes named copy buttons for both languages", async () => {
+    const repository = createPromptRepository();
+    await repository.create(prompt("copy-both", "复制双语文案", "IMAGE"), []);
+    render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
+    await userEvent.click(await screen.findByRole("button", { name: "打开复制双语文案" }));
+    expect(screen.getByRole("button", { name: "复制中文 Prompt" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "复制英文 Prompt" })).toBeVisible();
+  });
+
+  it("reflects a successful copy on the matching language button", async () => {
+    const repository = createPromptRepository();
+    await repository.create(prompt("copy-ok", "复制成功", "IMAGE"), []);
+    render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
+    await userEvent.click(await screen.findByRole("button", { name: "打开复制成功" }));
+    const zhCopy = screen.getByRole("button", { name: "复制中文 Prompt" });
+    await userEvent.click(zhCopy);
+    await waitFor(() => expect(zhCopy).toHaveTextContent("已复制"));
+  });
+
+  it("shows an accessible alert when clipboard copy fails", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn(() => Promise.reject(new Error("denied"))) },
+      configurable: true,
+      writable: true,
+    });
+    const repository = createPromptRepository();
+    await repository.create(prompt("copy-fail", "复制失败", "IMAGE"), []);
+    render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
+    await userEvent.click(await screen.findByRole("button", { name: "打开复制失败" }));
+    await userEvent.click(screen.getByRole("button", { name: "复制中文 Prompt" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/复制失败/);
+  });
+
+  it("opens a full media viewer from the detail cover and closes it", async () => {
+    const repository = createPromptRepository();
+    const record = prompt("viewer", "完整媒体查看", "IMAGE");
+    const asset: PromptAsset = { id: "cover", promptId: record.id, role: "COVER", blob: new Blob(["image"], { type: "image/png" }), mimeType: "image/png", originalName: "cover.png", byteSize: 5, checksum: "x", createdAt: now };
+    await repository.create(record, [asset]);
+    render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
+    await userEvent.click(await screen.findByRole("button", { name: "打开完整媒体查看" }));
+    await userEvent.click(screen.getByRole("button", { name: "查看完整媒体" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("img", { name: "完整媒体查看封面" })).toHaveAttribute("src", "blob:cover");
+    await userEvent.click(within(dialog).getByRole("button", { name: "关闭查看器" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("renders the detail cover as a non-cropping button with the detail-image class", async () => {
+    const repository = createPromptRepository();
+    const record = prompt("contain", "不裁剪封面", "IMAGE");
+    const asset: PromptAsset = { id: "cover", promptId: record.id, role: "COVER", blob: new Blob(["image"], { type: "image/png" }), mimeType: "image/png", originalName: "cover.png", byteSize: 5, checksum: "x", createdAt: now };
+    await repository.create(record, [asset]);
+    render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
+    await userEvent.click(await screen.findByRole("button", { name: "打开不裁剪封面" }));
+    expect(screen.getByRole("button", { name: "查看完整媒体" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "不裁剪封面封面" })).toHaveClass("detail-image");
   });
 });

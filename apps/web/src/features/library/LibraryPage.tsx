@@ -1,5 +1,5 @@
-import { Download, FileUp, Grid2X2, Image, List, Plus, Search, Star, Trash2, Upload, X } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { Check, Clipboard, Download, FileUp, Grid2X2, Image, List, Maximize2, Plus, Search, Star, Trash2, Upload, X } from "lucide-react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { PromptAsset, PromptRecord } from "../../domain/types";
 import { exportPromptPackage } from "../../transfer/export-prompt";
 import { applyPromptImport, previewPromptImport, type PromptImportPreview } from "../../transfer/import-prompt";
@@ -29,17 +29,53 @@ function PromptRow({ prompt, assets, view, onOpen }: { prompt: PromptRecord; ass
   </button>;
 }
 
+function MediaViewer({ asset, url, title, onClose }: { asset?: PromptAsset; url: string; title: string; onClose(): void }) {
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) { if (event.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="media-viewer-backdrop" role="dialog" aria-modal="true" aria-label={`${title} 完整媒体`} onClick={onClose}>
+      <div className="media-viewer" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="icon-button media-viewer-close" aria-label="关闭查看器" onClick={onClose}><X size={18} /></button>
+        {url ? (
+          asset?.mimeType.startsWith("video/")
+            ? <video className="media-viewer-content" src={url} controls autoPlay />
+            : <img className="media-viewer-content" src={url} alt={`${title}封面`} />
+        ) : <div className="cover-placeholder large"><Image size={40} /><span>无可用媒体</span></div>}
+      </div>
+    </div>
+  );
+}
+
 function PromptDetail({ prompt, assets, onClose, onEdit }: { prompt: PromptRecord; assets: PromptAsset[]; onClose(): void; onEdit(): void }) {
   const cover = assets.find(({ role }) => role === "COVER") ?? assets[0];
   const coverUrl = useAssetUrl(cover);
+  const [copyState, setCopyState] = useState<{ zh: "idle" | "copied" | "failed"; en: "idle" | "copied" | "failed" }>({ zh: "idle", en: "idle" });
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const timers = useRef<{ zh?: ReturnType<typeof setTimeout>; en?: ReturnType<typeof setTimeout> }>({});
+  useEffect(() => () => { timers.current.zh && clearTimeout(timers.current.zh); timers.current.en && clearTimeout(timers.current.en); }, []);
+  async function copy(text: string, lang: "zh" | "en") {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyState((state) => ({ ...state, [lang]: "copied" }));
+    } catch {
+      setCopyState((state) => ({ ...state, [lang]: "failed" }));
+    }
+    timers.current[lang] = setTimeout(() => setCopyState((state) => ({ ...state, [lang]: "idle" })), 2000);
+  }
   return <aside className="detail-panel" aria-label="Prompt 详情"><header className="detail-header"><strong>Prompt 详情</strong><div className="detail-actions"><button className="secondary-button" onClick={onEdit}>编辑 Prompt</button><button className="icon-button" aria-label="关闭详情" onClick={onClose}><X size={16} /></button></div></header><div className="detail-scroll">
-    <div className="detail-visual">{coverUrl ? (cover?.mimeType.startsWith("video/") ? <video className="detail-image" src={coverUrl} controls /> : <img className="detail-image" src={coverUrl} alt={`${prompt.title}封面`} />) : <div className="cover-placeholder large"><Image size={30} /><span>{prompt.mediaType}</span></div>}</div>
+    <button type="button" className="detail-visual" aria-label="查看完整媒体" onClick={() => setViewerOpen(true)}>
+      {coverUrl ? (cover?.mimeType.startsWith("video/") ? <video className="detail-image" src={coverUrl} muted /> : <img className="detail-image" src={coverUrl} alt={`${prompt.title}封面`} />) : <div className="cover-placeholder large"><Image size={30} /><span>{prompt.mediaType}</span></div>}
+      <Maximize2 className="detail-visual-expand" size={16} aria-hidden="true" />
+    </button>
     <div className="detail-title"><div><h2>{prompt.title}</h2><p>{prompt.description || "暂无说明"}</p></div></div>
     <div className="tag-row detail-tags">{prompt.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
-    <section className="prompt-block"><div className="block-heading"><span>中文 Prompt</span></div><pre>{prompt.contentZh}</pre></section>
-    <section className="prompt-block"><div className="block-heading"><span>English Prompt</span></div><pre>{prompt.contentEn}</pre></section>
+    <section className="prompt-block"><div className="block-heading"><span>中文 Prompt</span><button type="button" className="copy-button" aria-label="复制中文 Prompt" onClick={() => void copy(prompt.contentZh, "zh")}>{copyState.zh === "copied" ? <Check size={14} /> : <Clipboard size={14} />}<span>{copyState.zh === "copied" ? "已复制" : copyState.zh === "failed" ? "复制失败" : "复制"}</span></button></div><pre>{prompt.contentZh}</pre>{copyState.zh === "failed" ? <p className="copy-alert" role="alert">复制失败，请手动选择文本复制。</p> : null}</section>
+    <section className="prompt-block"><div className="block-heading"><span>English Prompt</span><button type="button" className="copy-button" aria-label="复制英文 Prompt" onClick={() => void copy(prompt.contentEn, "en")}>{copyState.en === "copied" ? <Check size={14} /> : <Clipboard size={14} />}<span>{copyState.en === "copied" ? "已复制" : copyState.en === "failed" ? "复制失败" : "复制"}</span></button></div><pre>{prompt.contentEn}</pre>{copyState.en === "failed" ? <p className="copy-alert" role="alert">复制失败，请手动选择文本复制。</p> : null}</section>
     {prompt.provenance ? <section className="detail-section"><h3>生成来源</h3><p>{prompt.provenance.template?.nameZh ?? "自定义模板"} · {prompt.provenance.compilerVersion}</p></section> : null}
-  </div></aside>;
+  </div>{viewerOpen ? <MediaViewer asset={cover} url={coverUrl} title={prompt.title} onClose={() => setViewerOpen(false)} /> : null}</aside>;
 }
 
 const MEDIA_TYPES = /^(image\/(png|jpeg|webp|gif)|video\/(mp4|webm))$/;
