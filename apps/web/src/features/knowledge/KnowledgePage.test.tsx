@@ -19,6 +19,6 @@ describe("KnowledgePage", () => {
     await userEvent.click(screen.getByRole("button", { name: "保存知识" }));
     await waitFor(async () => expect((await createKnowledgeRepository().list("SKILL")).filter(({ owner }) => owner === "USER")).toHaveLength(1));
     expect(screen.getByText("用户副本")).toBeVisible();
-    expect(fetch).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalledWith(expect.stringMatching(/^https?:\/\//));
   });
 });

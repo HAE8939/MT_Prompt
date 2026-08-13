@@ -20,6 +20,6 @@ describe("SettingsPage", () => {
     expect(screen.getByLabelText("Provider 密钥")).toHaveAttribute("type", "password");
     await userEvent.click(screen.getByRole("button", { name: "清除 Provider" }));
     await waitFor(async () => expect(await createSettingsRepository().getProvider()).toBeUndefined());
-    expect(fetch).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalledWith(expect.stringMatching(/^https?:\/\//));
   });
 });

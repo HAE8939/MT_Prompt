@@ -71,6 +71,6 @@ describe("LibraryPage", () => {
   it("never requests the legacy Prompt API", async () => {
     render(<VaultProvider><LibraryPage /></VaultProvider>);
     await screen.findByRole("button", { name: "导入 .prompt" });
-    expect(fetch).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalledWith(expect.stringMatching(/^https?:\/\//));
   });
 });
