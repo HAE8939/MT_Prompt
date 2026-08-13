@@ -1,16 +1,23 @@
-import { Check, Clipboard, Save, Sparkles } from "lucide-react";
+import { Check, Clipboard, Save, Sparkles, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { KnowledgeRecord, PromptRecord } from "../../domain/types";
+import type { KnowledgeRecord, PromptRecord, ProviderSettings } from "../../domain/types";
 import { useVault } from "../../vault/VaultProvider";
 import { compileInBrowser, type BrowserCompileResult } from "./browser-compiler";
+import { BUILT_IN_MODELS, BUILT_IN_TASKS } from "../../vault/built-in-catalog";
+import { complete } from "../../lib/provider-client";
 import "./generator.css";
 
 type LoadState = "loading" | "ready" | "error";
 
 export function GeneratorPage() {
-  const { knowledge, prompts } = useVault();
+  const { knowledge, prompts, settings } = useVault();
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [records, setRecords] = useState<KnowledgeRecord[]>([]);
+  const defaultModelKey = BUILT_IN_MODELS[0]!.stableKey;
+  const [modelKey, setModelKey] = useState(defaultModelKey);
+  const [taskKey, setTaskKey] = useState(
+    BUILT_IN_TASKS.find((task) => task.modelKey === defaultModelKey)?.stableKey ?? "",
+  );
   const [templateId, setTemplateId] = useState("");
   const [requirement, setRequirement] = useState("");
   const [skillIds, setSkillIds] = useState<string[]>([]);
@@ -19,22 +26,26 @@ export function GeneratorPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState<"zh" | "en" | null>(null);
+  const [provider, setProvider] = useState<ProviderSettings>();
+  const [enhancing, setEnhancing] = useState(false);
 
   useEffect(() => {
     let active = true;
     knowledge.list().then((nextRecords) => {
       if (!active) return;
       setRecords(nextRecords);
-      setTemplateId(nextRecords.find(({ stableKey, kind, enabled }) => kind === "TEMPLATE" && enabled && stableKey === "template.general")?.id ?? nextRecords.find(({ kind, enabled }) => kind === "TEMPLATE" && enabled)?.id ?? "");
       setLoadState("ready");
     }).catch(() => {
       if (active) setLoadState("error");
     });
+    settings.getProvider().then((nextProvider) => {
+      if (active) setProvider(nextProvider);
+    }).catch(() => undefined);
     return () => { active = false; };
-  }, [knowledge]);
+  }, [knowledge, settings]);
 
   const templates = useMemo(
-    () => records.filter(({ kind, enabled }) => kind === "TEMPLATE" && enabled).sort((left, right) => (left.stableKey === "template.general" ? -1 : right.stableKey === "template.general" ? 1 : left.priority - right.priority)),
+    () => records.filter(({ kind, enabled }) => kind === "TEMPLATE" && enabled),
     [records],
   );
   const skills = useMemo(
@@ -45,7 +56,41 @@ export function GeneratorPage() {
     () => records.filter(({ kind, enabled }) => kind === "RULE" && enabled),
     [records],
   );
-  const selectedTemplate = templates.find(({ id }) => id === templateId) ?? templates[0];
+  const tasks = useMemo(
+    () => BUILT_IN_TASKS.filter((task) => task.modelKey === modelKey),
+    [modelKey],
+  );
+  const templatesForTask = useMemo(
+    () => templates.filter((template) => template.taskKey === taskKey),
+    [templates, taskKey],
+  );
+  const compatibleSkills = useMemo(
+    () => skills.filter((skill) => !skill.modelKeys || skill.modelKeys.includes(modelKey)),
+    [skills, modelKey],
+  );
+  const selectedTemplate = templatesForTask.find(({ id }) => id === templateId) ?? templatesForTask[0];
+
+  function changeModel(next: string) {
+    setModelKey(next);
+    const nextTaskKey = BUILT_IN_TASKS.find((task) => task.modelKey === next)?.stableKey ?? "";
+    setTaskKey(nextTaskKey);
+    const nextTemplate = templates.find((template) => template.taskKey === nextTaskKey);
+    setTemplateId(nextTemplate?.id ?? "");
+    setSkillIds((current) => current.filter((id) => {
+      const skill = skills.find((record) => record.id === id);
+      return skill && (!skill.modelKeys || skill.modelKeys.includes(next));
+    }));
+  }
+
+  function changeTask(next: string) {
+    setTaskKey(next);
+    const nextTemplate = templates.find((template) => template.taskKey === next);
+    setTemplateId(nextTemplate?.id ?? "");
+    setSkillIds((current) => current.filter((id) => {
+      const skill = skills.find((record) => record.id === id);
+      return skill && (!skill.modelKeys || skill.modelKeys.includes(modelKey));
+    }));
+  }
 
   function toggleSkill(id: string) {
     setSkillIds((current) => current.includes(id)
@@ -62,7 +107,7 @@ export function GeneratorPage() {
         requirementZh: requirement,
         requirementEn: `Original Chinese requirement: ${requirement.trim()}`,
         template: selectedTemplate,
-        skills: skills.filter(({ id }) => skillIds.includes(id)),
+        skills: compatibleSkills.filter(({ id }) => skillIds.includes(id)),
         rules,
       }));
     } catch (compileError) {
@@ -109,6 +154,26 @@ export function GeneratorPage() {
     window.setTimeout(() => setCopied(null), 1200);
   }
 
+  async function enhance() {
+    if (!result || !provider || enhancing) return;
+    setEnhancing(true);
+    setError("");
+    try {
+      const improved = await complete(provider, [{ role: "user", content: result.contentZh }]);
+      if (improved.trim()) {
+        setResult((previous) => previous
+          ? { ...previous, contentZh: improved, contentEn: improved }
+          : previous);
+      }
+    } catch (enhanceError) {
+      setError(enhanceError instanceof Error ? enhanceError.message : "Provider 增强失败，本地结果已保留。");
+    } finally {
+      setEnhancing(false);
+    }
+  }
+
+  const canEnhance = Boolean(result && provider?.baseUrl && provider?.model && provider?.apiKey);
+
   return <main className="generator-page">
     <header className="page-header">
       <div><h1>Prompt 生成器</h1><span className="count">中文填写需求，本地生成中英双语 Prompt</span></div>
@@ -120,9 +185,19 @@ export function GeneratorPage() {
 
     {selectedTemplate ? <div className="generator-layout">
       <section className="generator-form" aria-label="生成配置">
+        <label>模型
+          <select aria-label="模型" value={modelKey} onChange={(event) => changeModel(event.target.value)}>
+            {BUILT_IN_MODELS.map((model) => <option key={model.stableKey} value={model.stableKey}>{model.name}</option>)}
+          </select>
+        </label>
+        <label>任务
+          <select aria-label="任务" value={taskKey} onChange={(event) => changeTask(event.target.value)}>
+            {tasks.map((task) => <option key={task.stableKey} value={task.stableKey}>{task.nameZh}</option>)}
+          </select>
+        </label>
         <label>模板
           <select aria-label="模板" value={selectedTemplate.id} onChange={(event) => setTemplateId(event.target.value)}>
-            {templates.map((template) => <option key={template.id} value={template.id}>{template.nameZh}</option>)}
+            {templatesForTask.map((template) => <option key={template.id} value={template.id}>{template.nameZh}</option>)}
           </select>
         </label>
         <label>任务要求
@@ -130,10 +205,10 @@ export function GeneratorPage() {
         </label>
         <fieldset className="skill-picker">
           <legend>可选 Skill</legend>
-          {skills.length ? skills.map((skill) => <label key={skill.id}>
+          {compatibleSkills.length ? compatibleSkills.map((skill) => <label key={skill.id}>
             <input aria-label={skill.nameZh} type="checkbox" checked={skillIds.includes(skill.id)} onChange={() => toggleSkill(skill.id)} />
             {skill.nameZh}<span>{skill.category}</span>
-          </label>) : <p>当前没有已启用的 Skill</p>}
+          </label>) : <p>当前模型没有可用的 Skill</p>}
         </fieldset>
         <button className="primary-button generator-submit" disabled={!requirement.trim()} onClick={compile}>
           <Sparkles size={16} />生成 Prompt
@@ -147,8 +222,11 @@ export function GeneratorPage() {
           <PromptResult title="中文 Prompt" value={result.contentZh} language="zh" copied={copied} onCopy={copy} />
           <PromptResult title="English Prompt" value={result.contentEn} language="en" copied={copied} onCopy={copy} />
           <section className="contribution-list"><h3>编译来源</h3>{result.contributions.map((item, index) => <div key={`${item.sourceType}-${item.sourceKey}-${index}`}><strong>{item.sourceType}</strong><span>{item.sourceKey} · v{item.version} · {item.section}</span></div>)}</section>
-          <div className="result-actions"><button className="primary-button" disabled={saving || saved} onClick={save}><Save size={15} />{saving ? "保存中..." : saved ? "已保存到 Prompt 库" : "保存到 Prompt 库"}</button></div>
-        </div> : <div className="state-panel"><Sparkles size={28} /><h2>等待生成</h2><p>选择模板和 Skill，填写中文任务要求后生成。</p></div>}
+          <div className="result-actions">
+            {canEnhance ? <button className="secondary-button" disabled={enhancing} onClick={enhance}><Zap size={15} />{enhancing ? "增强中..." : "增强 Prompt"}</button> : null}
+            <button className="primary-button" disabled={saving || saved} onClick={save}><Save size={15} />{saving ? "保存中..." : saved ? "已保存到 Prompt 库" : "保存到 Prompt 库"}</button>
+          </div>
+        </div> : <div className="state-panel"><Sparkles size={28} /><h2>等待生成</h2><p>选择模型、任务与模板，填写中文任务要求后生成。</p></div>}
       </section>
     </div> : null}
   </main>;
