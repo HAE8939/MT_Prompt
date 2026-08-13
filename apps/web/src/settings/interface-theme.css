@@ -1,0 +1,38 @@
+/* Theme and density tokens applied by InterfaceSettingsProvider.
+   The provider writes data-theme (light|dark) and data-density (compact|comfortable)
+   on document.documentElement, so the same variables drive every page. */
+
+[data-theme="light"] {
+  --canvas: #f6f6f5;
+  --sidebar: #ffffff;
+  --surface: #ffffff;
+  --raised: #efefee;
+  --border: #d9d9d6;
+  --border-strong: #b9b9b4;
+  --muted: #6b6b66;
+  --text: #1d1d1b;
+  --accent: #7c3aed;
+  --accent-soft: #ece9f6;
+  --gold: #a9790f;
+}
+
+[data-theme="dark"] {
+  --canvas: #111315;
+  --sidebar: #141618;
+  --surface: #1a1c1e;
+  --raised: #222427;
+  --border: #34363a;
+  --border-strong: #484a50;
+  --muted: #989898;
+  --text: #e7e5e4;
+  --accent: #8b5cf6;
+  --accent-soft: #35313d;
+  --gold: #d7a62e;
+}
+
+/* Compact density tightens the most common spacing without changing layout boxes. */
+[data-density="compact"] .page-header { margin-bottom: 14px; }
+[data-density="compact"] .library-main { padding: 18px 18px 32px; }
+[data-density="compact"] .settings-section { padding: 18px; }
+[data-density="compact"] .prompt-card { gap: 10px; }
+[data-density="compact"] .detail-panel { padding: 16px; }

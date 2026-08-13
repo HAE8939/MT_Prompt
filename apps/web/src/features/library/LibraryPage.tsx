@@ -4,6 +4,7 @@ import type { PromptAsset, PromptRecord } from "../../domain/types";
 import { exportPromptPackage } from "../../transfer/export-prompt";
 import { applyPromptImport, previewPromptImport, type PromptImportPreview } from "../../transfer/import-prompt";
 import { useVault } from "../../vault/VaultProvider";
+import { useInterfaceSettings } from "../../settings/InterfaceSettingsProvider";
 import { blobBytes, sha256 } from "../../transfer/hash";
 import "./library-fixes.css";
 
@@ -54,9 +55,11 @@ function PromptEditor({ prompt, assets: initialAssets = [], onClose, onSave }: {
 }
 
 export function LibraryPage() {
-  const vault = useVault(); const [records, setRecords] = useState<PromptRecord[]>([]); const [assets, setAssets] = useState<Record<string, PromptAsset[]>>({});
-  const [search, setSearch] = useState(""); const deferredSearch = useDeferredValue(search); const [filter, setFilter] = useState<Filter>("ALL"); const [view, setView] = useState<"list" | "grid">("list");
+  const vault = useVault(); const { settings, updateSettings } = useInterfaceSettings();
+  const [records, setRecords] = useState<PromptRecord[]>([]); const [assets, setAssets] = useState<Record<string, PromptAsset[]>>({});
+  const [search, setSearch] = useState(""); const deferredSearch = useDeferredValue(search); const [filter, setFilter] = useState<Filter>("ALL"); const view = settings.libraryView;
   const [selectedId, setSelectedId] = useState<string>(); const [editor, setEditor] = useState<PromptRecord | "new">(); const [importPreview, setImportPreview] = useState<PromptImportPreview>(); const [message, setMessage] = useState("");
+  function setView(next: "list" | "grid") { void updateSettings({ ...settings, libraryView: next }); }
   async function reload() { const next = await vault.prompts.list({ keyword: deferredSearch, mediaType: filter === "IMAGE" || filter === "VIDEO" ? filter : undefined, favorite: filter === "FAVORITE" ? true : undefined, sort: "updatedAt", order: "desc" }); setRecords(next); const pairs = await Promise.all(next.map(async ({ id }) => [id, await vault.prompts.listAssets(id)] as const)); setAssets(Object.fromEntries(pairs)); }
   useEffect(() => { void reload(); }, [deferredSearch, filter]);
   const selected = useMemo(() => records.find(({ id }) => id === selectedId), [records, selectedId]);

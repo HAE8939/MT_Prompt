@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PromptAsset, PromptRecord } from "../../domain/types";
 import { deleteVault } from "../../vault/open-vault";
 import { createPromptRepository } from "../../vault/prompt-repository";
+import { createSettingsRepository } from "../../vault/settings-repository";
 import { VaultProvider } from "../../vault/VaultProvider";
+import { InterfaceSettingsProvider } from "../../settings/InterfaceSettingsProvider";
 import { LibraryPage } from "./LibraryPage";
 
 const now = "2026-08-12T00:00:00.000Z";
@@ -23,7 +25,7 @@ describe("LibraryPage", () => {
     const repository = createPromptRepository();
     await repository.create(prompt("local-image", "本地图像", "IMAGE"), []);
     await repository.create(prompt("local-video", "本地视频", "VIDEO", true), []);
-    render(<VaultProvider><LibraryPage /></VaultProvider>);
+    render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
     expect(await screen.findByText("本地图像")).toBeVisible();
     expect(screen.getByText("本地视频")).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "图片" }));
@@ -38,7 +40,7 @@ describe("LibraryPage", () => {
     const repository = createPromptRepository(); const record = prompt("with-cover", "含封面提示词", "IMAGE");
     const asset: PromptAsset = { id: "cover", promptId: record.id, role: "COVER", blob: new Blob(["image"], { type: "image/png" }), mimeType: "image/png", originalName: "cover.png", byteSize: 5, checksum: "x", createdAt: now };
     await repository.create(record, [asset]);
-    render(<VaultProvider><LibraryPage /></VaultProvider>);
+    render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
     await userEvent.click(await screen.findByRole("button", { name: "打开含封面提示词" }));
     expect(await screen.findByRole("img", { name: "含封面提示词封面" })).toHaveAttribute("src", "blob:cover");
     await userEvent.click(screen.getByRole("button", { name: "编辑 Prompt" }));
@@ -52,7 +54,7 @@ describe("LibraryPage", () => {
     const record = prompt("media-edit", "素材编辑", "IMAGE");
     const oldAsset: PromptAsset = { id: "old-cover", promptId: record.id, role: "COVER", blob: new Blob(["old"], { type: "image/png" }), mimeType: "image/png", originalName: "old.png", byteSize: 3, checksum: "old", createdAt: now };
     await repository.create(record, [oldAsset]);
-    render(<VaultProvider><LibraryPage /></VaultProvider>);
+    render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
 
     await userEvent.click(await screen.findByRole("button", { name: "打开素材编辑" }));
     await userEvent.click(screen.getByRole("button", { name: "编辑 Prompt" }));
@@ -69,8 +71,14 @@ describe("LibraryPage", () => {
   });
 
   it("never requests the legacy Prompt API", async () => {
-    render(<VaultProvider><LibraryPage /></VaultProvider>);
+    render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
     await screen.findByRole("button", { name: "导入 .prompt" });
     expect(fetch).not.toHaveBeenCalledWith(expect.stringMatching(/^https?:\/\//));
+  });
+
+  it("initializes the library grid from the saved default view", async () => {
+    await createSettingsRepository().saveInterface({ theme: "system", language: "zh-CN", libraryView: "grid", compact: true });
+    render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
+    await waitFor(() => expect(screen.getByRole("button", { name: "网格视图" })).toHaveClass("active"));
   });
 });
