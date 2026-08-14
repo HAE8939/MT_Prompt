@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const browser = process.env.CI === "true" ? {} : { channel: "chrome" as const };
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
@@ -11,7 +13,7 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome" } }],
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], ...browser } }],
   webServer: {
     command: "npm run dev",
     url: "http://127.0.0.1:5173",

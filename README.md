@@ -42,9 +42,10 @@ Web 默认运行于 `http://127.0.0.1:5173`，API 默认运行于 `http://127.0.
 
 ```bash
 npm test
-npm run typecheck
-npm run build --workspaces --if-present
+npm run verify
 ```
+
+`npm run verify` 依次执行单元测试、生产边界测试、类型检查、Web 生产构建和 Chrome E2E。GitHub Actions 会在 `main` 推送和 Pull Request 上执行相同门禁，并额外构建 Docker 镜像、检查容器健康状态。
 
 ## English
 
