@@ -13,5 +13,7 @@ test-results
 playwright-report
 coverage
 docs
-prisma
+prisma/*
+!prisma/
+!prisma/schema.prisma
 *.log
