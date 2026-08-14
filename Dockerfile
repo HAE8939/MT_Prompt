@@ -9,6 +9,8 @@ RUN npm ci --ignore-scripts
 COPY tsconfig.base.json ./
 COPY apps ./apps
 COPY packages ./packages
+COPY prisma ./prisma
+RUN DATABASE_URL=file:./database/promptvault.db npx prisma generate --schema=prisma/schema.prisma
 RUN npm --workspace @promptvault/web run build && npm --workspace @promptvault/api run build
 
 FROM node:22-alpine AS runtime
