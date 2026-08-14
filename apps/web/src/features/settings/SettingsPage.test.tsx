@@ -7,7 +7,29 @@ import { VaultProvider } from "../../vault/VaultProvider";
 import { InterfaceSettingsProvider } from "../../settings/InterfaceSettingsProvider";
 import { SettingsPage } from "./SettingsPage";
 
-afterEach(async () => { cleanup(); vi.unstubAllGlobals(); await deleteVault(); });
+const { rejectSaveRef } = vi.hoisted(() => ({ rejectSaveRef: { value: false } }));
+
+vi.mock("../../vault/settings-repository", async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof import("../../vault/settings-repository");
+  return {
+    ...actual,
+    createSettingsRepository: () => {
+      const real = actual.createSettingsRepository();
+      return {
+        ...real,
+        saveInterface: vi.fn(async (settings) => {
+          if (rejectSaveRef.value) {
+            await new Promise((resolve) => setTimeout(resolve, 30));
+            throw new Error("simulated interface save failure");
+          }
+          return real.saveInterface(settings);
+        }),
+      };
+    },
+  };
+});
+
+afterEach(async () => { cleanup(); vi.unstubAllGlobals(); rejectSaveRef.value = false; await deleteVault(); });
 
 describe("SettingsPage", () => {
   it("saves and clears device-local Provider settings", async () => {
@@ -43,5 +65,21 @@ describe("SettingsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "数据边界" }));
     await waitFor(() => expect(screen.getByRole("heading", { name: "数据边界" })).toBeVisible());
     expect(screen.queryByLabelText("Provider 地址")).not.toBeInTheDocument();
+  });
+
+  it("shows a recoverable alert when interface persistence fails", async () => {
+    rejectSaveRef.value = false;
+    await createSettingsRepository().saveInterface({ theme: "dark", language: "zh-CN", libraryView: "list", compact: true });
+    rejectSaveRef.value = true;
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("not requested"))));
+    render(<VaultProvider><InterfaceSettingsProvider><SettingsPage /></InterfaceSettingsProvider></VaultProvider>);
+
+    await userEvent.click(await screen.findByRole("button", { name: "界面" }));
+    const themeSelect = await screen.findByLabelText("主题");
+    await userEvent.selectOptions(themeSelect, "light");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/界面设置保存失败/);
+    expect(themeSelect).toBeEnabled();
   });
 });

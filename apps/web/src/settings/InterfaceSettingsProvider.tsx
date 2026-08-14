@@ -19,7 +19,7 @@ export const DEFAULT_INTERFACE: InterfaceSettings = {
 
 export interface InterfaceSettingsContextValue {
   settings: InterfaceSettings;
-  updateSettings: (next: InterfaceSettings) => void;
+  updateSettings: (next: InterfaceSettings) => Promise<void>;
   ready: boolean;
   error?: Error;
 }
@@ -80,12 +80,20 @@ export function InterfaceSettingsProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  function updateSettings(next: InterfaceSettings) {
+  async function updateSettings(next: InterfaceSettings): Promise<void> {
+    setError(undefined);
+    const previous = settingsRef.current;
     setSettings(next);
     applyToDocument(next);
-    repository.saveInterface(next).catch((saveError) => {
-      setError(saveError instanceof Error ? saveError : new Error(String(saveError)));
-    });
+    try {
+      await repository.saveInterface(next);
+    } catch {
+      setSettings(previous);
+      applyToDocument(previous);
+      setError(new Error("界面设置保存失败，请重试。"));
+      // Resolve after rollback: callers that ignore the promise (e.g. void updateSettings(...))
+      // must not surface an unhandled rejection, and the error state already drives the alert.
+    }
   }
 
   return (

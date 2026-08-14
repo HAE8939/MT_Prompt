@@ -57,12 +57,13 @@ function ProviderPanel() {
 }
 
 function InterfacePanel() {
-  const { settings: ui, updateSettings } = useInterfaceSettings();
+  const { settings: ui, updateSettings, error } = useInterfaceSettings();
   function setInterface(patch: Partial<InterfaceSettings>) { void updateSettings({ ...ui, ...patch }); }
   return <section className="settings-panel-block" aria-label="界面"><header><div className="section-icon"><Palette size={17} /></div><div><h2>界面</h2><p>这些设置可选择随 .prompt 分享，Provider 永远不会包含。</p></div></header><div className="settings-form">
     <label>主题<select aria-label="主题" value={ui.theme} onChange={(event) => setInterface({ theme: event.target.value as InterfaceSettings["theme"] })}><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
     <label>Prompt 库默认视图<select aria-label="Prompt 库默认视图" value={ui.libraryView} onChange={(event) => setInterface({ libraryView: event.target.value as InterfaceSettings["libraryView"] })}><option value="list">列表</option><option value="grid">网格</option></select></label>
     <label className="enabled-toggle"><input type="checkbox" aria-label="紧凑模式" checked={ui.compact} onChange={(event) => setInterface({ compact: event.target.checked })} />紧凑模式</label>
+    {error ? <p className="form-error" role="alert">界面设置保存失败，请重试。</p> : null}
   </div></section>;
 }
 
