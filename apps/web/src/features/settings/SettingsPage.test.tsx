@@ -27,10 +27,21 @@ describe("SettingsPage", () => {
   it("applies the selected theme to the document root through the interface provider", async () => {
     document.documentElement.dataset.theme = "";
     render(<VaultProvider><InterfaceSettingsProvider><SettingsPage /></InterfaceSettingsProvider></VaultProvider>);
+    await userEvent.click(await screen.findByRole("button", { name: "界面" }));
     const themeSelect = await screen.findByLabelText("主题");
     await userEvent.selectOptions(themeSelect, "dark");
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
     await userEvent.selectOptions(themeSelect, "light");
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe("light"));
+  });
+
+  it("switches the active settings panel through the navigation", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("not requested"))));
+    render(<VaultProvider><InterfaceSettingsProvider><SettingsPage /></InterfaceSettingsProvider></VaultProvider>);
+    // The default panel is Provider.
+    expect(await screen.findByLabelText("Provider 地址")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "数据边界" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "数据边界" })).toBeVisible());
+    expect(screen.queryByLabelText("Provider 地址")).not.toBeInTheDocument();
   });
 });
