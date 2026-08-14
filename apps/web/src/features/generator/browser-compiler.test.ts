@@ -106,4 +106,43 @@ describe("compileInBrowser", () => {
       rules: [],
     })).toThrow(/Conflicting skills in group lighting/);
   });
+
+  it("compiles dynamic template fields in both languages", () => {
+    const template = knowledge("TEMPLATE", "template.video", "任务要求：{{requirements}}\n镜头运动：{{cameraMotion}}", "Task requirements: {{requirements}}\nCamera motion: {{cameraMotion}}");
+    template.fieldSchema = {
+      fields: [
+        { name: "requirements", labelZh: "任务要求", labelEn: "Task requirements", type: "textarea", required: true },
+        { name: "cameraMotion", labelZh: "镜头运动", labelEn: "Camera motion", type: "textarea", required: true },
+      ],
+    };
+
+    const result = compileInBrowser({
+      requirementZh: "",
+      template,
+      skills: [],
+      rules: [],
+      fieldValues: {
+        requirements: { zh: "把白天改成蓝调夜景", en: "Original Chinese requirement: 把白天改成蓝调夜景" },
+        cameraMotion: { zh: "缓慢推进", en: "缓慢推进" },
+      },
+    });
+
+    expect(result.contentZh).toBe("任务要求：把白天改成蓝调夜景\n镜头运动：缓慢推进");
+    expect(result.contentEn).toBe("Task requirements: Original Chinese requirement: 把白天改成蓝调夜景\nCamera motion: 缓慢推进");
+  });
+
+  it("throws TEMPLATE_FIELD_REQUIRED when a required field is empty", () => {
+    const template = knowledge("TEMPLATE", "template.video", "任务要求：{{requirements}}", "Task requirements: {{requirements}}");
+    template.fieldSchema = {
+      fields: [{ name: "requirements", labelZh: "任务要求", labelEn: "Task requirements", type: "textarea", required: true }],
+    };
+
+    expect(() => compileInBrowser({
+      requirementZh: "",
+      template,
+      skills: [],
+      rules: [],
+      fieldValues: { requirements: { zh: "", en: "" } },
+    })).toThrow("TEMPLATE_FIELD_REQUIRED");
+  });
 });

@@ -3,10 +3,37 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createPromptRepository } from "../../vault/prompt-repository";
 import { createSettingsRepository } from "../../vault/settings-repository";
+import { createKnowledgeRepository } from "../../vault/knowledge-repository";
 import { deleteVault } from "../../vault/open-vault";
 import { VaultProvider } from "../../vault/VaultProvider";
 import { GeneratorPage } from "./GeneratorPage";
 import { BUILT_IN_MODELS, BUILT_IN_TASKS } from "../../vault/built-in-catalog";
+import type { KnowledgeRecord } from "../../domain/types";
+
+function dualFieldTemplate(): KnowledgeRecord {
+  return {
+    id: "test-template-dual-field",
+    stableKey: "test-template-dual-field",
+    kind: "TEMPLATE",
+    owner: "USER",
+    nameZh: "双字段测试模板",
+    nameEn: "Dual-field test template",
+    contentZh: "任务要求：\n{{requirements}}\n镜头运动：\n{{cameraMotion}}\n请严格遵循约束。",
+    contentEn: "Task requirements:\n{{requirements}}\nCamera motion:\n{{cameraMotion}}\nFollow constraints.",
+    enabled: true,
+    version: 1,
+    priority: 100,
+    category: "TEMPLATE",
+    updatedAt: "2026-08-13T00:00:00.000Z",
+    taskKey: "gpt-image-2-image-generate",
+    fieldSchema: {
+      fields: [
+        { name: "requirements", labelZh: "任务要求", labelEn: "Task requirements", type: "textarea", required: true },
+        { name: "cameraMotion", labelZh: "镜头运动", labelEn: "Camera motion", type: "textarea", required: true },
+      ],
+    },
+  };
+}
 
 describe("GeneratorPage", () => {
   afterEach(async () => {
@@ -128,5 +155,51 @@ describe("GeneratorPage", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toBeVisible();
     expect(alert).toHaveTextContent(/lighting|conflict/i);
+  });
+
+  it("renders a custom two-field template schema and resolves both placeholders", async () => {
+    await createKnowledgeRepository().save(dualFieldTemplate());
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network must not be used"))));
+    render(<VaultProvider><GeneratorPage /></VaultProvider>);
+
+    await screen.findByLabelText("模板");
+    const requirements = screen.getByLabelText("任务要求");
+    const cameraMotion = screen.getByLabelText("镜头运动");
+    const generate = screen.getByRole("button", { name: "生成 Prompt" });
+
+    expect(generate).toBeDisabled();
+    await userEvent.type(requirements, "把白天改成蓝调夜景");
+    expect(generate).toBeDisabled();
+    await userEvent.type(cameraMotion, "缓慢推进");
+    expect(generate).toBeEnabled();
+
+    await userEvent.click(generate);
+
+    expect(await screen.findByText(/任务要求：[\s\S]*把白天改成蓝调夜景/)).toBeVisible();
+    expect(await screen.findByText(/镜头运动：[\s\S]*缓慢推进/)).toBeVisible();
+    expect(screen.getByText(/Camera motion:[\s\S]*缓慢推进/)).toBeVisible();
+    expect(screen.getByText(/Task requirements:[\s\S]*Original Chinese requirement: 把白天改成蓝调夜景/)).toBeVisible();
+  });
+
+  it("clears previous template field values when switching templates", async () => {
+    await createKnowledgeRepository().save(dualFieldTemplate());
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network must not be used"))));
+    render(<VaultProvider><GeneratorPage /></VaultProvider>);
+
+    await screen.findByLabelText("模板");
+    await userEvent.type(screen.getByLabelText("任务要求"), "把白天改成蓝调夜景");
+    await userEvent.type(screen.getByLabelText("镜头运动"), "缓慢推进");
+    await userEvent.click(screen.getByRole("button", { name: "生成 Prompt" }));
+    expect(await screen.findByText(/镜头运动：[\s\S]*缓慢推进/)).toBeVisible();
+
+    const templateSelect = screen.getByLabelText("模板");
+    await userEvent.selectOptions(templateSelect, screen.getByRole("option", { name: "图片生成基础模板" }));
+    await waitFor(() => expect(screen.queryByLabelText("镜头运动")).toBeNull());
+
+    await userEvent.type(screen.getByLabelText("任务要求"), "切换后的新要求");
+    await userEvent.click(screen.getByRole("button", { name: "生成 Prompt" }));
+
+    expect(await screen.findByText(/任务要求：[\s\S]*切换后的新要求/)).toBeVisible();
+    await waitFor(() => expect(screen.queryByText(/缓慢推进/)).toBeNull());
   });
 });

@@ -11,11 +11,12 @@ const DEFAULT_SECTION_ORDER = [
 ] as const;
 
 export interface BrowserCompileInput {
-  requirementZh: string;
+  requirementZh?: string;
   requirementEn?: string;
   template: KnowledgeRecord;
   skills: readonly KnowledgeRecord[];
   rules: readonly KnowledgeRecord[];
+  fieldValues?: Record<string, { zh: string; en: string }>;
   now?: () => string;
 }
 
@@ -42,8 +43,16 @@ export function compileInBrowser(input: BrowserCompileInput): BrowserCompileResu
   const rules = input.rules.filter(
     (record) => record.kind === "RULE" && record.enabled,
   );
-  const requirementZh = input.requirementZh.trim();
+  const requirementZh = (input.requirementZh ?? "").trim();
   const requirementEn = input.requirementEn?.trim() || requirementZh;
+
+  const values: Record<string, { zh: string; en: string }> = {
+    requirement: { zh: requirementZh, en: requirementEn },
+    requirements: { zh: requirementZh, en: requirementEn },
+  };
+  for (const [key, value] of Object.entries(input.fieldValues ?? {})) {
+    values[key] = value;
+  }
 
   const compiled = compilePrompt({
     modelTaskKey: input.template.category || "general",
@@ -52,11 +61,9 @@ export function compileInBrowser(input: BrowserCompileInput): BrowserCompileResu
       version: input.template.version,
       bodyZh: input.template.contentZh,
       bodyEn: input.template.contentEn,
+      fields: input.template.fieldSchema?.fields.map(({ name, required }) => ({ name, required })),
     },
-    inputValues: {
-      requirement: { zh: requirementZh, en: requirementEn },
-      requirements: { zh: requirementZh, en: requirementEn },
-    },
+    inputValues: values,
     skills: skills.map((record) => ({
       key: record.stableKey,
       version: record.version,

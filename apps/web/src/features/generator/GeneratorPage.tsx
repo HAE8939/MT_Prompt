@@ -19,6 +19,18 @@ function parseEnhancedPrompt(raw: string): EnhancedPrompt {
 
 type LoadState = "loading" | "ready" | "error";
 
+type TemplateFieldValues = Record<string, { zh: string; en: string }>;
+
+type FormField = { name: string; labelZh: string; labelEn: string; type: "textarea"; required: boolean };
+
+const DEFAULT_REQUIREMENTS_FIELD: FormField = {
+  name: "requirements",
+  labelZh: "任务要求",
+  labelEn: "Task requirements",
+  type: "textarea",
+  required: true,
+};
+
 export function GeneratorPage() {
   const { knowledge, prompts, settings } = useVault();
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -29,7 +41,7 @@ export function GeneratorPage() {
     BUILT_IN_TASKS.find((task) => task.modelKey === defaultModelKey)?.stableKey ?? "",
   );
   const [templateId, setTemplateId] = useState("");
-  const [requirement, setRequirement] = useState("");
+  const [fieldValues, setFieldValues] = useState<TemplateFieldValues>({});
   const [skillIds, setSkillIds] = useState<string[]>([]);
   const [result, setResult] = useState<BrowserCompileResult>();
   const [saved, setSaved] = useState(false);
@@ -79,6 +91,20 @@ export function GeneratorPage() {
     [skills, modelKey],
   );
   const selectedTemplate = templatesForTask.find(({ id }) => id === templateId) ?? templatesForTask[0];
+  const formFields = selectedTemplate?.fieldSchema?.fields ?? [DEFAULT_REQUIREMENTS_FIELD];
+  const requiredFields = formFields.filter((field) => field.required);
+  const canGenerate = Boolean(selectedTemplate) && requiredFields.every((field) => fieldValues[field.name]?.zh?.trim());
+
+  useEffect(() => {
+    if (!selectedTemplate) return;
+    const next: TemplateFieldValues = {};
+    for (const field of (selectedTemplate.fieldSchema?.fields ?? [DEFAULT_REQUIREMENTS_FIELD])) {
+      next[field.name] = fieldValues[field.name] ?? { zh: "", en: "" };
+    }
+    setFieldValues(next);
+    // Only re-initialize when the selected template changes, not on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTemplate?.id]);
 
   function changeModel(next: string) {
     setModelKey(next);
@@ -109,19 +135,22 @@ export function GeneratorPage() {
   }
 
   function compile() {
-    if (!selectedTemplate || !requirement.trim()) return;
+    if (!selectedTemplate || !canGenerate) {
+      setError("请填写所有必填字段。");
+      return;
+    }
     setError("");
     setSaved(false);
     try {
       setResult(compileInBrowser({
-        requirementZh: requirement,
-        requirementEn: `Original Chinese requirement: ${requirement.trim()}`,
         template: selectedTemplate,
         skills: compatibleSkills.filter(({ id }) => skillIds.includes(id)),
         rules,
+        fieldValues,
       }));
     } catch (compileError) {
-      setError(compileError instanceof Error ? compileError.message : "生成失败，请检查模板和 Skill。 ");
+      const message = compileError instanceof Error ? compileError.message : "生成失败，请检查模板和 Skill。";
+      setError(message.includes("TEMPLATE_FIELD_REQUIRED") ? "请填写所有必填字段。" : message);
     }
   }
 
@@ -129,10 +158,13 @@ export function GeneratorPage() {
     if (!result || saving || saved) return;
     setSaving(true);
     setError("");
+    const titleSeed = fieldValues.requirements?.zh?.trim()
+      ?? (formFields[0] ? fieldValues[formFields[0].name]?.zh?.trim() : "")
+      ?? "";
     const now = new Date().toISOString();
     const prompt: PromptRecord = {
       id: crypto.randomUUID(),
-      title: requirement.trim().slice(0, 160),
+      title: titleSeed.slice(0, 160),
       description: "由 MT-Prompt 浏览器生成器创建",
       contentZh: result.contentZh,
       contentEn: result.contentEn,
@@ -214,9 +246,17 @@ export function GeneratorPage() {
             {templatesForTask.map((template) => <option key={template.id} value={template.id}>{template.nameZh}</option>)}
           </select>
         </label>
-        <label>任务要求
-          <textarea aria-label="任务要求" value={requirement} onChange={(event) => setRequirement(event.target.value)} placeholder="用中文描述你想生成或修改的内容" rows={8} />
-        </label>
+        {formFields.map((field) => (
+          <label key={field.name}>{field.labelZh}
+            <textarea aria-label={field.labelZh} value={fieldValues[field.name]?.zh ?? ""} onChange={(event) => {
+              const zh = event.target.value;
+              setFieldValues((current) => ({
+                ...current,
+                [field.name]: { zh, en: field.name === "requirements" ? `Original Chinese requirement: ${zh}` : zh },
+              }));
+            }} placeholder={`用中文填写${field.labelZh}`} rows={field.name === "requirements" ? 8 : 4} />
+          </label>
+        ))}
         <fieldset className="skill-picker">
           <legend>可选 Skill</legend>
           {compatibleSkills.length ? compatibleSkills.map((skill) => <label key={skill.id}>
@@ -224,7 +264,7 @@ export function GeneratorPage() {
             {skill.nameZh}<span>{skill.category}</span>
           </label>) : <p>当前模型没有可用的 Skill</p>}
         </fieldset>
-        <button className="primary-button generator-submit" disabled={!requirement.trim()} onClick={compile}>
+        <button className="primary-button generator-submit" disabled={!canGenerate} onClick={compile}>
           <Sparkles size={16} />生成 Prompt
         </button>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
