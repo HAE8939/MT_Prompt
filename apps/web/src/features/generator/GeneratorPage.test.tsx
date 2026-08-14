@@ -83,4 +83,36 @@ describe("GeneratorPage", () => {
     expect(screen.getByText(/任务要求：[\s\S]*提升画面质感/)).toBeVisible();
     expect(await screen.findByRole("alert")).toBeVisible();
   });
+
+  it("preserves distinct bilingual output during Provider enhancement", async () => {
+    const fetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/provider")) {
+        const payload = JSON.parse(init!.body as string) as { messages: Array<{ content: string }> };
+        const requestContent = payload.messages[0]!.content;
+        expect(requestContent).toContain("将白天改成蓝调夜景");
+        expect(requestContent).toContain("Original Chinese requirement: 将白天改成蓝调夜景");
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: JSON.stringify({ contentZh: "优化后的中文 Prompt", contentEn: "Enhanced English Prompt" }) } }] }),
+          { status: 200 },
+        );
+      }
+      return Promise.reject(new Error("network must not be used"));
+    });
+    vi.stubGlobal("fetch", fetch);
+    const repository = createSettingsRepository();
+    await repository.saveProvider({ baseUrl: "https://proxy.local", model: "enhance", apiKey: "secret" });
+    render(<VaultProvider><GeneratorPage /></VaultProvider>);
+
+    await screen.findByLabelText("任务要求");
+    await userEvent.type(screen.getByLabelText("任务要求"), "将白天改成蓝调夜景");
+    await userEvent.click(screen.getByRole("button", { name: "生成 Prompt" }));
+    expect(await screen.findByText(/任务要求：[\s\S]*将白天改成蓝调夜景/)).toBeVisible();
+
+    const enhanceButton = await screen.findByRole("button", { name: /增强/ });
+    await userEvent.click(enhanceButton);
+
+    expect(await screen.findByText("优化后的中文 Prompt")).toBeVisible();
+    expect(await screen.findByText("Enhanced English Prompt")).toBeVisible();
+    expect(screen.getByText("优化后的中文 Prompt")).not.toBe(screen.getByText("Enhanced English Prompt"));
+  });
 });

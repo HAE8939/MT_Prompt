@@ -7,6 +7,16 @@ import { BUILT_IN_MODELS, BUILT_IN_TASKS } from "../../vault/built-in-catalog";
 import { complete } from "../../lib/provider-client";
 import "./generator.css";
 
+type EnhancedPrompt = { contentZh: string; contentEn: string };
+
+function parseEnhancedPrompt(raw: string): EnhancedPrompt {
+  const value = JSON.parse(raw) as Partial<EnhancedPrompt>;
+  if (!value.contentZh?.trim() || !value.contentEn?.trim()) {
+    throw new Error("Provider 返回的双语 Prompt 格式无效。");
+  }
+  return { contentZh: value.contentZh.trim(), contentEn: value.contentEn.trim() };
+}
+
 type LoadState = "loading" | "ready" | "error";
 
 export function GeneratorPage() {
@@ -159,12 +169,16 @@ export function GeneratorPage() {
     setEnhancing(true);
     setError("");
     try {
-      const improved = await complete(provider, [{ role: "user", content: result.contentZh }]);
-      if (improved.trim()) {
-        setResult((previous) => previous
-          ? { ...previous, contentZh: improved, contentEn: improved }
-          : previous);
-      }
+      const requestContent = [
+        "你是一名双语 Prompt 优化助手。以下是本地生成的中英文 Prompt，请在保持语义与结构的前提下分别优化，并以严格 JSON 返回：{\"contentZh\":\"...\",\"contentEn\":\"...\"}\。不要添加任何解释或代码块标记。",
+        `中文 Prompt：\n${result.contentZh}`,
+        `英文 Prompt：\n${result.contentEn}`,
+      ].join("\n\n");
+      const raw = await complete(provider, [{ role: "user", content: requestContent }]);
+      const improved = parseEnhancedPrompt(raw);
+      setResult((previous) => previous
+        ? { ...previous, contentZh: improved.contentZh, contentEn: improved.contentEn }
+        : previous);
     } catch (enhanceError) {
       setError(enhanceError instanceof Error ? enhanceError.message : "Provider 增强失败，本地结果已保留。");
     } finally {
