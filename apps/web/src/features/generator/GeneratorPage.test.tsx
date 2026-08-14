@@ -115,4 +115,18 @@ describe("GeneratorPage", () => {
     expect(await screen.findByText("Enhanced English Prompt")).toBeVisible();
     expect(screen.getByText("优化后的中文 Prompt")).not.toBe(screen.getByText("Enhanced English Prompt"));
   });
+
+  it("surfaces a recoverable error when conflicting Skills are selected", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network must not be used"))));
+    render(<VaultProvider><GeneratorPage /></VaultProvider>);
+
+    await userEvent.type(await screen.findByLabelText("任务要求"), "提升画面质感");
+    await userEvent.click(screen.getByLabelText("自然光保持"));
+    await userEvent.click(screen.getByLabelText("黄金时刻光线"));
+    await userEvent.click(screen.getByRole("button", { name: "生成 Prompt" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toBeVisible();
+    expect(alert).toHaveTextContent(/lighting|conflict/i);
+  });
 });

@@ -62,7 +62,7 @@ export function compileInBrowser(input: BrowserCompileInput): BrowserCompileResu
       version: record.version,
       section: record.category || "detail",
       priority: record.priority,
-      conflictGroup: null,
+      conflictGroup: record.conflictGroup ?? null,
       contentZh: record.contentZh,
       contentEn: record.contentEn,
     })),

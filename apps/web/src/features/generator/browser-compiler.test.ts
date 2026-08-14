@@ -92,4 +92,18 @@ describe("compileInBrowser", () => {
     expect(result.provenance.template?.nameZh).toBe("template.basic");
     expect(result.provenance.skills).toEqual([]);
   });
+
+  it("throws when Skills share a conflict group", () => {
+    const template = knowledge("TEMPLATE", "template.interior", "设计要求：{{requirement}}", "Design requirement: {{requirement}}");
+    const skillA = { ...knowledge("SKILL", "natural-light-preservation", "保持自然光方向。", "Preserve natural light direction.", "LIGHTING"), conflictGroup: "lighting" };
+    const skillB = { ...knowledge("SKILL", "golden-hour-lighting", "转换为黄金时刻光线。", "Transform to golden-hour light.", "LIGHTING"), conflictGroup: "lighting" };
+
+    expect(() => compileInBrowser({
+      requirementZh: "将白天改成蓝调夜景",
+      requirementEn: "Turn the daytime scene into blue-hour",
+      template,
+      skills: [skillA, skillB],
+      rules: [],
+    })).toThrow(/Conflicting skills in group lighting/);
+  });
 });
