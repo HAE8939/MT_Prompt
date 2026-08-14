@@ -1,4 +1,5 @@
 import { Check, Clipboard, Save, Sparkles, Zap } from "lucide-react";
+import { copyText } from "../../lib/clipboard";
 import { useEffect, useMemo, useState } from "react";
 import { CompilerConflictError } from "@promptvault/compiler";
 import type { KnowledgeRecord, PromptRecord, ProviderSettings } from "../../domain/types";
@@ -210,7 +211,7 @@ export function GeneratorPage() {
   }
 
   async function copy(language: "zh" | "en", value: string) {
-    await navigator.clipboard.writeText(value);
+    if (!await copyText(value)) throw new Error("Copy failed");
     setCopied(language);
     window.setTimeout(() => setCopied(null), 1200);
   }

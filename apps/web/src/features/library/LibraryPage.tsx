@@ -6,6 +6,7 @@ import { applyPromptImport, previewPromptImport, type PromptImportPreview } from
 import { useVault } from "../../vault/VaultProvider";
 import { useInterfaceSettings } from "../../settings/InterfaceSettingsProvider";
 import { blobBytes, sha256 } from "../../transfer/hash";
+import { copyText } from "../../lib/clipboard";
 import "./library-fixes.css";
 
 type Filter = "ALL" | "IMAGE" | "VIDEO" | "FAVORITE";
@@ -58,11 +59,9 @@ function PromptDetail({ prompt, assets, onClose, onEdit }: { prompt: PromptRecor
   useEffect(() => () => { timers.current.zh && clearTimeout(timers.current.zh); timers.current.en && clearTimeout(timers.current.en); }, []);
   async function copy(text: string, lang: "zh" | "en") {
     try {
-      await navigator.clipboard.writeText(text);
+      if (!await copyText(text)) throw new Error("Copy failed");
       setCopyState((state) => ({ ...state, [lang]: "copied" }));
-    } catch {
-      setCopyState((state) => ({ ...state, [lang]: "failed" }));
-    }
+    } catch { setCopyState((state) => ({ ...state, [lang]: "failed" })); }
     timers.current[lang] = setTimeout(() => setCopyState((state) => ({ ...state, [lang]: "idle" })), 2000);
   }
   return <aside className="detail-panel" aria-label="Prompt 详情"><header className="detail-header"><strong>Prompt 详情</strong><div className="detail-actions"><button className="secondary-button" onClick={onEdit}>编辑 Prompt</button><button className="icon-button" aria-label="关闭详情" onClick={onClose}><X size={16} /></button></div></header><div className="detail-scroll">
