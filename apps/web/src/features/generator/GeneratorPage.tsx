@@ -1,5 +1,6 @@
 import { Check, Clipboard, Save, Sparkles, Zap } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { CompilerConflictError } from "@promptvault/compiler";
 import type { KnowledgeRecord, PromptRecord, ProviderSettings } from "../../domain/types";
 import { useVault } from "../../vault/VaultProvider";
 import { compileInBrowser, type BrowserCompileResult } from "./browser-compiler";
@@ -90,6 +91,7 @@ export function GeneratorPage() {
     () => skills.filter((skill) => !skill.modelKeys || skill.modelKeys.includes(modelKey)),
     [skills, modelKey],
   );
+  const selectedModel = BUILT_IN_MODELS.find((model) => model.stableKey === modelKey);
   const selectedTemplate = templatesForTask.find(({ id }) => id === templateId) ?? templatesForTask[0];
   const formFields = selectedTemplate?.fieldSchema?.fields ?? [DEFAULT_REQUIREMENTS_FIELD];
   const requiredFields = formFields.filter((field) => field.required);
@@ -99,14 +101,22 @@ export function GeneratorPage() {
     if (!selectedTemplate) return;
     const next: TemplateFieldValues = {};
     for (const field of (selectedTemplate.fieldSchema?.fields ?? [DEFAULT_REQUIREMENTS_FIELD])) {
-      next[field.name] = fieldValues[field.name] ?? { zh: "", en: "" };
+      next[field.name] = { zh: "", en: "" };
     }
     setFieldValues(next);
-    // Only re-initialize when the selected template changes, not on every keystroke.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setResult(undefined);
+    setSaved(false);
+    setError("");
   }, [selectedTemplate?.id]);
 
+  function invalidateResult() {
+    setResult(undefined);
+    setSaved(false);
+    setError("");
+  }
+
   function changeModel(next: string) {
+    invalidateResult();
     setModelKey(next);
     const nextTaskKey = BUILT_IN_TASKS.find((task) => task.modelKey === next)?.stableKey ?? "";
     setTaskKey(nextTaskKey);
@@ -119,6 +129,7 @@ export function GeneratorPage() {
   }
 
   function changeTask(next: string) {
+    invalidateResult();
     setTaskKey(next);
     const nextTemplate = templates.find((template) => template.taskKey === next);
     setTemplateId(nextTemplate?.id ?? "");
@@ -129,6 +140,7 @@ export function GeneratorPage() {
   }
 
   function toggleSkill(id: string) {
+    invalidateResult();
     setSkillIds((current) => current.includes(id)
       ? current.filter((item) => item !== id)
       : [...current, id]);
@@ -149,6 +161,13 @@ export function GeneratorPage() {
         fieldValues,
       }));
     } catch (compileError) {
+      if (compileError instanceof CompilerConflictError) {
+        const names = compileError.skillKeys.map((key) =>
+          skills.find((skill) => skill.stableKey === key)?.nameZh ?? key
+        );
+        setError(`所选 Skill 存在冲突：${names.join("、")}。请取消其中一个后重试。`);
+        return;
+      }
       const message = compileError instanceof Error ? compileError.message : "生成失败，请检查模板和 Skill。";
       setError(message.includes("TEMPLATE_FIELD_REQUIRED") ? "请填写所有必填字段。" : message);
     }
@@ -170,7 +189,7 @@ export function GeneratorPage() {
       contentEn: result.contentEn,
       negativeZh: "",
       negativeEn: "",
-      mediaType: "IMAGE",
+      mediaType: selectedModel?.mediaType ?? "IMAGE",
       category: selectedTemplate?.category || "通用",
       tags: ["生成器"],
       favorite: false,
@@ -242,7 +261,10 @@ export function GeneratorPage() {
           </select>
         </label>
         <label>模板
-          <select aria-label="模板" value={selectedTemplate.id} onChange={(event) => setTemplateId(event.target.value)}>
+          <select aria-label="模板" value={selectedTemplate.id} onChange={(event) => {
+            invalidateResult();
+            setTemplateId(event.target.value);
+          }}>
             {templatesForTask.map((template) => <option key={template.id} value={template.id}>{template.nameZh}</option>)}
           </select>
         </label>
@@ -250,6 +272,7 @@ export function GeneratorPage() {
           <label key={field.name}>{field.labelZh}
             <textarea aria-label={field.labelZh} value={fieldValues[field.name]?.zh ?? ""} onChange={(event) => {
               const zh = event.target.value;
+              invalidateResult();
               setFieldValues((current) => ({
                 ...current,
                 [field.name]: { zh, en: field.name === "requirements" ? `Original Chinese requirement: ${zh}` : zh },

@@ -154,7 +154,44 @@ describe("GeneratorPage", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toBeVisible();
-    expect(alert).toHaveTextContent(/lighting|conflict/i);
+    expect(alert).toHaveTextContent("所选 Skill 存在冲突");
+    expect(alert).toHaveTextContent("自然光保持");
+    expect(alert).toHaveTextContent("黄金时刻光线");
+    expect(alert).not.toHaveTextContent("natural-light-preservation");
+  });
+
+  it("invalidates a generated result when the form changes", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network must not be used"))));
+    render(<VaultProvider><GeneratorPage /></VaultProvider>);
+
+    const requirements = await screen.findByLabelText("任务要求");
+    await userEvent.type(requirements, "生成时的旧需求");
+    await userEvent.click(screen.getByRole("button", { name: "生成 Prompt" }));
+    expect(await screen.findByText(/任务要求：[\s\S]*生成时的旧需求/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "保存到 Prompt 库" })).toBeEnabled();
+
+    await userEvent.clear(requirements);
+    await userEvent.type(requirements, "修改后的新需求");
+
+    expect(screen.queryByText(/任务要求：[\s\S]*生成时的旧需求/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "保存到 Prompt 库" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "等待生成" })).toBeVisible();
+  });
+
+  it("saves generated video-model Prompts with VIDEO media type", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network must not be used"))));
+    render(<VaultProvider><GeneratorPage /></VaultProvider>);
+
+    await userEvent.selectOptions(await screen.findByLabelText("模型"), "kling-3");
+    await userEvent.type(screen.getByLabelText("任务要求"), "生成一段镜头缓慢推进的视频");
+    await userEvent.click(screen.getByRole("button", { name: "生成 Prompt" }));
+    await userEvent.click(await screen.findByRole("button", { name: "保存到 Prompt 库" }));
+
+    await waitFor(async () => {
+      const saved = await createPromptRepository().list({ sort: "createdAt", order: "desc" });
+      const prompt = saved.find(({ title }) => title === "生成一段镜头缓慢推进的视频");
+      expect(prompt?.mediaType).toBe("VIDEO");
+    });
   });
 
   it("renders a custom two-field template schema and resolves both placeholders", async () => {
@@ -195,6 +232,8 @@ describe("GeneratorPage", () => {
     const templateSelect = screen.getByLabelText("模板");
     await userEvent.selectOptions(templateSelect, screen.getByRole("option", { name: "图片生成基础模板" }));
     await waitFor(() => expect(screen.queryByLabelText("镜头运动")).toBeNull());
+    expect(screen.getByLabelText("任务要求")).toHaveValue("");
+    expect(screen.queryByRole("button", { name: "保存到 Prompt 库" })).toBeNull();
 
     await userEvent.type(screen.getByLabelText("任务要求"), "切换后的新要求");
     await userEvent.click(screen.getByRole("button", { name: "生成 Prompt" }));

@@ -39,3 +39,35 @@ test("generates bilingual output locally and saves to the library without a Prov
   await page.getByRole("button", { name: "保存到 Prompt 库" }).click();
   await expect(page.getByText("已保存到 Prompt 库")).toBeVisible();
 });
+
+test("invalidates generated output when an input changes", async ({ page }) => {
+  await page.goto("/generator");
+  const requirements = page.getByLabel("任务要求");
+  await requirements.fill("生成时的旧需求");
+  await page.getByRole("button", { name: "生成 Prompt" }).click();
+  await expect(page.locator("section.prompt-block").first()).toContainText("生成时的旧需求");
+  await expect(page.getByRole("button", { name: "保存到 Prompt 库" })).toBeVisible();
+
+  await requirements.fill("修改后的新需求");
+
+  await expect(page.getByRole("heading", { name: "等待生成" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "保存到 Prompt 库" })).toHaveCount(0);
+});
+
+test("saves Kling output as a video Prompt", async ({ page }) => {
+  const requirement = `E2E 视频分类 ${Date.now()}`;
+  await page.goto("/generator");
+  await page.getByLabel("模型", { exact: true }).selectOption("kling-3");
+  await page.getByLabel("任务要求").fill(requirement);
+  await page.getByRole("button", { name: "生成 Prompt" }).click();
+  await page.getByRole("button", { name: "保存到 Prompt 库" }).click();
+  await expect(page.getByText("已保存到 Prompt 库")).toBeVisible();
+
+  await page.goto("/library");
+  await page.getByLabel("搜索 Prompt").fill(requirement);
+  await page.getByRole("button", { name: "视频", exact: true }).click();
+  await expect(page.locator(".local-prompt-card", { hasText: requirement })).toBeVisible();
+
+  await page.getByRole("button", { name: "图片", exact: true }).click();
+  await expect(page.locator(".local-prompt-card", { hasText: requirement })).toHaveCount(0);
+});

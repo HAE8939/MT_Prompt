@@ -81,6 +81,13 @@ describe("LibraryPage", () => {
     expect(fetch).not.toHaveBeenCalledWith(expect.stringMatching(/^https?:\/\//));
   });
 
+  it("uses a native button to open the Prompt package picker", async () => {
+    render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
+    const importButton = await screen.findByRole("button", { name: "导入 .prompt" });
+    expect(importButton.tagName).toBe("BUTTON");
+    expect(importButton).not.toContainElement(screen.getByLabelText("选择 .prompt 文件"));
+  });
+
   it("initializes the library grid from the saved default view", async () => {
     await createSettingsRepository().saveInterface({ theme: "system", language: "zh-CN", libraryView: "grid", compact: true });
     render(<VaultProvider><InterfaceSettingsProvider><LibraryPage /></InterfaceSettingsProvider></VaultProvider>);
