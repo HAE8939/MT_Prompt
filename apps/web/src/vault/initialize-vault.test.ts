@@ -116,6 +116,27 @@ describe("initializeVault", () => {
     expect(assets.every(({ byteSize }) => byteSize > 0)).toBe(true);
   });
 
+  it("restores a missing built-in cover after an earlier asset migration", async () => {
+    const loadAsset = async (path: string) => new Blob([path], { type: "image/webp" });
+    await initializeVault({ loadAsset });
+
+    const db = await openVault();
+    const transaction = db.transaction("assets", "readwrite");
+    transaction.objectStore("assets").delete("builtin-asset-builtin-prompt-01-cover");
+    await transactionDone(transaction);
+
+    await initializeVault({ loadAsset });
+
+    const assets = await readAssets();
+    expect(assets).toHaveLength(11);
+    expect(assets).toContainEqual(expect.objectContaining({
+      id: "builtin-asset-builtin-prompt-01-cover",
+      promptId: "builtin-prompt-01",
+      role: "COVER",
+      originalName: "01.webp",
+    }));
+  });
+
   it("imports the complete built-in generator knowledge once", async () => {
     await initializeVault();
     await initializeVault();

@@ -10,7 +10,7 @@ const EXAMPLE_SET_VERSION = 1;
 const KNOWLEDGE_SET_KEY = "knowledgeSetVersion";
 const KNOWLEDGE_SET_VERSION = 3;
 const ASSET_SET_KEY = "exampleAssetSetVersion";
-const ASSET_SET_VERSION = 1;
+const ASSET_SET_VERSION = 2;
 
 type InitializeOptions = { loadAsset?: (path: string) => Promise<Blob> };
 
@@ -76,23 +76,29 @@ export async function initializeVault(options: InitializeOptions = {}): Promise<
   const metaTransaction = database.transaction("meta", "readonly");
   const assetsInitialized = await requestResult<{ key: string; value: number } | undefined>(metaTransaction.objectStore("meta").get(ASSET_SET_KEY));
   await transactionDone(metaTransaction);
-  if (assetsInitialized) return;
-
+  const assetSetVersion = assetsInitialized?.value ?? 0;
   try {
-    const loader = options.loadAsset ?? fetchAsset;
     const seedAssets: Array<{ promptId: string; role: PromptAsset["role"]; name: string }> = [
       ...Array.from({ length: 10 }, (_, index) => ({ promptId: `builtin-prompt-${String(index + 1).padStart(2, "0")}`, role: "COVER" as const, name: `${String(index + 1).padStart(2, "0")}.webp` })),
       { promptId: "builtin-prompt-01", role: "REFERENCE", name: "01_before.webp" },
     ];
+
+    const existingTransaction = database.transaction("assets", "readonly");
+    const existingAssets = await requestResult<PromptAsset[]>(existingTransaction.objectStore("assets").getAll());
+    await transactionDone(existingTransaction);
+    const existingIds = new Set(existingAssets.map(({ id }) => id));
+    const missingSeeds = seedAssets.filter(({ promptId, role }) => !existingIds.has(`builtin-asset-${promptId}-${role.toLowerCase()}`));
+
+    if (missingSeeds.length === 0 && assetSetVersion >= ASSET_SET_VERSION) return;
+
+    const loader = options.loadAsset ?? fetchAsset;
     const prepared: PromptAsset[] = [];
-    for (const seed of seedAssets) {
+    for (const seed of missingSeeds) {
       const blob = await loader(seed.name);
       prepared.push({ id: `builtin-asset-${seed.promptId}-${seed.role.toLowerCase()}`, promptId: seed.promptId, role: seed.role, blob, mimeType: "image/webp", originalName: seed.name, byteSize: blob.size, checksum: await checksum(blob), createdAt: "2026-08-12T00:00:00.000Z" });
     }
     const assetTransaction = database.transaction(["assets", "meta"], "readwrite");
     const assetStore = assetTransaction.objectStore("assets");
-    const existingAssets = await requestResult<PromptAsset[]>(assetStore.getAll());
-    const existingIds = new Set(existingAssets.map(({ id }) => id));
     for (const asset of prepared) if (!existingIds.has(asset.id)) assetStore.add(asset);
     assetTransaction.objectStore("meta").put({ key: ASSET_SET_KEY, value: ASSET_SET_VERSION });
     await transactionDone(assetTransaction);
