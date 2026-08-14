@@ -6,7 +6,7 @@ import { openVault } from "./open-vault";
 import { blobBytes, sha256 } from "../transfer/hash";
 
 const EXAMPLE_SET_KEY = "exampleSetVersion";
-const EXAMPLE_SET_VERSION = 1;
+const EXAMPLE_SET_VERSION = 2;
 const KNOWLEDGE_SET_KEY = "knowledgeSetVersion";
 const KNOWLEDGE_SET_VERSION = 3;
 const ASSET_SET_KEY = "exampleAssetSetVersion";
@@ -37,13 +37,15 @@ export async function initializeVault(options: InitializeOptions = {}): Promise<
       meta.get(EXAMPLE_SET_KEY),
     );
 
-    if (!initialized) {
+    if (!initialized || initialized.value < EXAMPLE_SET_VERSION) {
       for (const example of EXAMPLE_PROMPTS) {
         const existing = await requestResult<PromptRecord | undefined>(
           prompts.get(example.id),
         );
         if (!existing) {
           prompts.add(example);
+        } else if (existing.origin === "BUILT_IN") {
+          prompts.put({ ...existing, contentZh: example.contentZh });
         }
       }
       meta.put({ key: EXAMPLE_SET_KEY, value: EXAMPLE_SET_VERSION });

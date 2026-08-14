@@ -254,4 +254,20 @@ describe("initializeVault", () => {
     );
     expect(edited?.title).toBe("我的客厅提示词");
   });
+
+  it("replaces an earlier built-in prompt body during the example-set migration", async () => {
+    await initializeVault();
+    const db = await openVault();
+    const transaction = db.transaction(["prompts", "meta"], "readwrite");
+    const store = transaction.objectStore("prompts");
+    const prompt = await requestResult<PromptRecord>(store.get("builtin-prompt-01"));
+    store.put({ ...prompt, contentZh: "Earlier built-in summary" });
+    transaction.objectStore("meta").put({ key: "exampleSetVersion", value: 1 });
+    await transactionDone(transaction);
+
+    await initializeVault();
+
+    const upgraded = (await readPrompts()).find(({ id }) => id === "builtin-prompt-01");
+    expect(upgraded?.contentZh).toContain("请基于上传的毛坯房照片生成一张现代温暖风客厅效果图");
+  });
 });
