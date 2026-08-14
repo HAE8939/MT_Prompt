@@ -3,7 +3,7 @@ import { BUILT_IN_KNOWLEDGE } from "./built-in-knowledge";
 import { requestResult, transactionDone } from "./idb-helpers";
 import { EXAMPLE_PROMPTS } from "./example-prompts";
 import { openVault } from "./open-vault";
-import { blobBytes } from "../transfer/hash";
+import { blobBytes, sha256 } from "../transfer/hash";
 
 const EXAMPLE_SET_KEY = "exampleSetVersion";
 const EXAMPLE_SET_VERSION = 1;
@@ -15,9 +15,7 @@ const ASSET_SET_VERSION = 2;
 type InitializeOptions = { loadAsset?: (path: string) => Promise<Blob> };
 
 async function checksum(blob: Blob): Promise<string> {
-  const bytes = await blobBytes(blob);
-  const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return sha256(await blobBytes(blob));
 }
 
 async function fetchAsset(path: string): Promise<Blob> {
