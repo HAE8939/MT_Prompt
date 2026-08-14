@@ -1,17 +1,7 @@
 import type { PromptRecord } from "../domain/types";
-import ciyuan01Source from "../../../../data/imports/ciyuan01/ciyuan01_gpt-image2_prompts.md?raw";
+import { CIYUAN01_TOP10_PROMPTS } from "./ciyuan01-top10";
 
 const CREATED_AT = "2026-08-12T00:00:00.000Z";
-
-const CIYUAN01_PROMPTS = ciyuan01Source
-  .split(/(?=^##\s+\d+\s+·\s+)/m)
-  .filter((block) => /^##\s+\d+\s+·\s+/m.test(block))
-  .slice(0, 10)
-  .map((block) => block
-    .replace(/^##\s+\d+\s+·\s+.+$/m, "")
-    .replace(/^!\[[^\]]*\]\([^)]+\)\s*$/gm, "")
-    .split(/\n---\s*$/m)[0] ?? ""
-    .trim());
 
 const examples: Array<Omit<Pick<PromptRecord, "title" | "description" | "contentZh" | "contentEn" | "category" | "tags">, "contentZh">> = [
   {
@@ -89,7 +79,7 @@ const examples: Array<Omit<Pick<PromptRecord, "title" | "description" | "content
 export const EXAMPLE_PROMPTS: PromptRecord[] = examples.map((example, index) => ({
   id: `builtin-prompt-${String(index + 1).padStart(2, "0")}`,
   ...example,
-  contentZh: CIYUAN01_PROMPTS[index] ?? "",
+  contentZh: CIYUAN01_TOP10_PROMPTS[index] ?? "",
   negativeZh: "避免结构失真、比例错误、材质塑料感、过度装饰、文字乱码和不可施工细节。",
   negativeEn: "Avoid distorted structure, incorrect scale, plastic-looking materials, excessive decoration, garbled text, and details that cannot be built.",
   mediaType: "IMAGE",
